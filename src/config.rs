@@ -101,6 +101,17 @@ impl Config {
         }
         Ok(())
     }
+
+    pub fn get_remote<'a>(&'a self, name: &str) -> Option<&'a Remote> {
+        self.remotes.iter().find(|remote| remote.name == name)
+    }
+
+    pub fn must_get_remote<'a>(&'a self, name: &str) -> Result<&'a Remote> {
+        match self.get_remote(name) {
+            Some(remote) => Ok(remote),
+            None => bail!("could not find remote {name}"),
+        }
+    }
 }
 
 pub fn get_path() -> Result<PathBuf> {
@@ -110,6 +121,16 @@ pub fn get_path() -> Result<PathBuf> {
             .context("could not find config directory, please set _GZ_CONFIG_PATH")?
             .join("git-zoxide")
             .join("config.yaml"),
+    };
+    Ok(path)
+}
+
+pub fn get_data_dir() -> Result<PathBuf> {
+    let path = match env::var_os("_GZ_DATA_PATH") {
+        Some(path) => PathBuf::from(path),
+        None => dirs::data_local_dir()
+            .context("could not find data directory, please set _GZ_DATA_PATH manually")?
+            .join("git-zoxide"),
     };
     Ok(path)
 }

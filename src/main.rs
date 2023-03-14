@@ -1,6 +1,7 @@
 use std::process;
 
 mod config;
+mod db;
 
 fn main() {
     match config::parse() {
