@@ -6,8 +6,8 @@ use anyhow::{bail, Context, Result};
 use bincode::Options;
 use ouroboros::self_referencing;
 
-use crate::config;
 pub use crate::db::repo::{Epoch, Repo};
+use crate::{config, util};
 
 #[self_referencing]
 pub struct Database {
@@ -37,6 +37,89 @@ impl Database {
             }
             Err(err) => bail!("failed to read db: {err}"),
         }
+    }
+
+    pub fn save(&mut self) -> Result<()> {
+        if !self.dirty() {
+            return Ok(());
+        }
+
+        let bytes = Self::serialize(self.borrow_repos())?;
+        if let Err(err) = util::write(self.borrow_path(), bytes) {
+            bail!("failed to write database: {err}");
+        }
+        self.with_dirty_mut(|d| *d = false);
+
+        Ok(())
+    }
+
+    pub fn insert(
+        &mut self,
+        name: impl AsRef<str> + Into<String>,
+        path: impl AsRef<str> + Into<String>,
+        now: Epoch,
+    ) {
+        self.with_repos_mut(|repos| {
+            if let None = repos.iter().find(|repo| repo.name == name.as_ref()) {
+                repos.push(Repo {
+                    name: name.into().into(),
+                    path: path.into().into(),
+                    last_accessed: now,
+                    accessed: 1,
+                });
+            }
+        });
+        self.with_dirty_mut(|d| *d = true);
+    }
+
+    pub fn get(&self, name: impl AsRef<str> + Into<String>) -> Option<&Repo> {
+        self.borrow_repos()
+            .iter()
+            .find(|repo| repo.name == name.as_ref())
+    }
+
+    pub fn get_by_path(&self, path: impl AsRef<str> + Into<String>) -> Option<&Repo> {
+        self.borrow_repos()
+            .iter()
+            .find(|repo| repo.path == path.as_ref())
+    }
+
+    pub fn update(&mut self, name: impl AsRef<str> + Into<String>, now: Epoch) {
+        self.with_repos_mut(|repos| {
+            if let Some(repo) = repos.iter_mut().find(|repo| repo.name == name.as_ref()) {
+                repo.accessed += 1;
+                repo.last_accessed = now;
+            }
+        });
+    }
+
+    pub fn remove(&mut self, name: impl AsRef<str> + Into<String>) {
+        if let Some(idx) = self
+            .borrow_repos()
+            .iter()
+            .position(|repo| repo.name == name.as_ref())
+        {
+            self.swap_remove(idx);
+        }
+    }
+
+    pub fn remove_by_path(&mut self, path: impl AsRef<str> + Into<String>) {
+        if let Some(idx) = self
+            .borrow_repos()
+            .iter()
+            .position(|repo| repo.path == path.as_ref())
+        {
+            self.swap_remove(idx);
+        }
+    }
+
+    pub fn swap_remove(&mut self, idx: usize) {
+        self.with_repos_mut(|repos| repos.swap_remove(idx));
+        self.with_dirty_mut(|d| *d = true);
+    }
+
+    pub fn dirty(&self) -> bool {
+        *self.borrow_dirty()
     }
 
     fn serialize(repos: &[Repo<'_>]) -> Result<Vec<u8>> {
