@@ -60,6 +60,7 @@ impl Database {
         path: impl AsRef<str> + Into<String>,
         now: Epoch,
     ) -> &Repo {
+        self.with_dirty_mut(|d| *d = true);
         self.with_repos_mut(|repos| {
             repos.push(Repo {
                 remote: remote.into().into(),
@@ -138,10 +139,13 @@ impl Database {
         })
     }
 
-    pub fn list_remote(&self, remote: impl AsRef<str> + Into<String>) -> Vec<&Repo> {
+    pub fn list_remote<S>(&self, remote: S) -> Vec<&Repo>
+    where
+        S: AsRef<str>,
+    {
         self.borrow_repos()
             .iter()
-            .filter(|repo| repo.name.starts_with(remote.as_ref()))
+            .filter(|repo| repo.remote == remote.as_ref())
             .collect()
     }
 

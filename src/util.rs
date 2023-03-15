@@ -1,15 +1,18 @@
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::mem;
 use std::ops::Index;
 use std::path::{Path, PathBuf};
-
-#[cfg(windows)]
-use anyhow::anyhow;
+use std::process::{Child, Command, Stdio};
+use std::time::SystemTime;
 
 use anyhow::{bail, Context, Result};
 
 use crate::db::Epoch;
+use crate::errors::SilentExit;
+
+use console::{style, Term};
+use dialoguer::{theme::ColorfulTheme, Confirm};
 
 pub const SECOND: Epoch = 1;
 pub const MINUTE: Epoch = 60 * SECOND;
@@ -125,4 +128,84 @@ pub fn split_query(query: impl AsRef<str> + Into<String>) -> (String, String) {
         }
     }
     (group_buffer.join("/"), base)
+}
+
+pub fn current_time() -> Result<Epoch> {
+    let current_time = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .context("system clock set to invalid time")?
+        .as_secs();
+
+    Ok(current_time)
+}
+
+pub fn confirm(msg: impl AsRef<str> + Into<String>) -> Result<()> {
+    let result = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(msg)
+        .interact_on(&Term::stderr());
+    match result {
+        Ok(ok) => {
+            if !ok {
+                bail!(SilentExit { code: 60 })
+            }
+            Ok(())
+        }
+        Err(err) => Err(err).context("could not do confirm prompt"),
+    }
+}
+
+const ERR_FZF_NOT_FOUND: &str = "could not find fzf, is it installed?";
+
+pub struct Fzf(Child);
+
+impl Fzf {
+    pub fn create() -> Result<Fzf> {
+        // TODO: support Windows
+        let program = "fzf";
+        let mut cmd = Command::new(program);
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
+
+        match cmd.spawn() {
+            Ok(child) => Ok(Fzf(child)),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => bail!(ERR_FZF_NOT_FOUND),
+            Err(err) => Err(err).context("could not launch fzf"),
+        }
+    }
+
+    pub fn query<S>(&mut self, keys: &Vec<S>) -> Result<usize>
+    where
+        S: AsRef<str>,
+    {
+        let mut input = String::with_capacity(keys.len());
+        for key in keys {
+            input.push_str(key.as_ref());
+            input.push_str("\n");
+        }
+
+        let handle = self.0.stdin.as_mut().unwrap();
+        if let Err(err) = write!(handle, "{}", input) {
+            return Err(err).context("could not write to fzf");
+        }
+
+        mem::drop(self.0.stdin.take());
+
+        let mut stdout = self.0.stdout.take().unwrap();
+        let mut output = String::new();
+        stdout
+            .read_to_string(&mut output)
+            .context("failed to read from fzf")?;
+        let output = output.trim();
+        let status = self.0.wait().context("wait failed on fzf")?;
+        match status.code() {
+            Some(0) => match keys.iter().position(|s| s.as_ref() == output) {
+                Some(idx) => Ok(idx),
+                None => bail!("could not find key {}", output),
+            },
+            Some(1) => bail!("no match found"),
+            Some(2) => bail!("fzf returned an error"),
+            Some(130) => bail!(SilentExit { code: 130 }),
+            Some(128..=254) | None => bail!("fzf was terminated"),
+            _ => bail!("fzf returned an unknown error"),
+        }
+    }
 }
