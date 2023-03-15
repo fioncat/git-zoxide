@@ -18,10 +18,10 @@ pub struct Config {
 
 #[derive(Deserialize, Debug)]
 pub struct Remote {
-    name: String,
-    user: Option<User>,
-    clone: Option<Clone>,
-    api: Option<API>,
+    pub name: String,
+    pub user: Option<User>,
+    pub clone: Option<Clone>,
+    pub api: Option<API>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -77,6 +77,48 @@ fn default_config() -> Config {
 }
 
 impl Config {
+    pub fn get_path() -> Result<PathBuf> {
+        let path = match env::var_os("_GZ_CONFIG_PATH") {
+            Some(path) => PathBuf::from(path),
+            None => dirs::config_dir()
+                .context("could not find config directory, please set _GZ_CONFIG_PATH")?
+                .join("git-zoxide")
+                .join("config.yaml"),
+        };
+        Ok(path)
+    }
+
+    pub fn get_data_dir() -> Result<PathBuf> {
+        let path = match env::var_os("_GZ_DATA_PATH") {
+            Some(path) => PathBuf::from(path),
+            None => dirs::data_local_dir()
+                .context("could not find data directory, please set _GZ_DATA_PATH manually")?
+                .join("git-zoxide"),
+        };
+        Ok(path)
+    }
+
+    fn read_config() -> Result<Config> {
+        let path = Self::get_path()?;
+        let file = match fs::File::open(&path) {
+            Ok(file) => file,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(default_config()),
+            Err(err) => bail!("failed to read config file: {err}"),
+        };
+        match serde_yaml::from_reader(file) {
+            Ok(config) => Ok(config),
+            Err(err) => bail!("failed to parse config yaml: {err}"),
+        }
+    }
+
+    pub fn parse() -> Result<Config> {
+        let mut config = Self::read_config()?;
+        if let Err(err) = config.normalize() {
+            bail!("failed to validate config: {err}")
+        };
+        Ok(config)
+    }
+
     fn normalize(&mut self) -> Result<()> {
         self.workspace = match shellexpand::full(&self.workspace) {
             Ok(path) => path.to_string(),
@@ -112,46 +154,4 @@ impl Config {
             None => bail!("could not find remote {name}"),
         }
     }
-}
-
-pub fn get_path() -> Result<PathBuf> {
-    let path = match env::var_os("_GZ_CONFIG_PATH") {
-        Some(path) => PathBuf::from(path),
-        None => dirs::config_dir()
-            .context("could not find config directory, please set _GZ_CONFIG_PATH")?
-            .join("git-zoxide")
-            .join("config.yaml"),
-    };
-    Ok(path)
-}
-
-pub fn get_data_dir() -> Result<PathBuf> {
-    let path = match env::var_os("_GZ_DATA_PATH") {
-        Some(path) => PathBuf::from(path),
-        None => dirs::data_local_dir()
-            .context("could not find data directory, please set _GZ_DATA_PATH manually")?
-            .join("git-zoxide"),
-    };
-    Ok(path)
-}
-
-fn read_config() -> Result<Config> {
-    let path = get_path()?;
-    let file = match fs::File::open(&path) {
-        Ok(file) => file,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(default_config()),
-        Err(err) => bail!("failed to read config file: {err}"),
-    };
-    match serde_yaml::from_reader(file) {
-        Ok(config) => Ok(config),
-        Err(err) => bail!("failed to parse config yaml: {err}"),
-    }
-}
-
-pub fn parse() -> Result<Config> {
-    let mut config = read_config()?;
-    if let Err(err) = config.normalize() {
-        bail!("failed to validate config: {err}")
-    };
-    Ok(config)
 }

@@ -1,12 +1,13 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::mem;
+use std::ops::Index;
 use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
 use anyhow::anyhow;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 
 use crate::db::Epoch;
 
@@ -109,4 +110,19 @@ fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<()> {
             }
         }
     }
+}
+
+pub fn split_query(query: impl AsRef<str> + Into<String>) -> (String, String) {
+    let items: Vec<_> = query.as_ref().split("/").collect();
+    let items_len = items.len();
+    let mut group_buffer: Vec<String> = Vec::with_capacity(items_len - 1);
+    let mut base = String::new();
+    for (idx, item) in items.iter().enumerate() {
+        if idx == items_len - 1 {
+            base = item.to_string();
+        } else {
+            group_buffer.push(item.to_string());
+        }
+    }
+    (group_buffer.join("/"), base)
 }

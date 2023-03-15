@@ -24,7 +24,7 @@ impl Database {
     const VERSION: u32 = 1;
 
     pub fn open() -> Result<Database> {
-        let data_dir = config::get_data_dir()?;
+        let data_dir = config::Config::get_data_dir()?;
         let path = data_dir.join("database");
 
         match fs::read(&path) {
@@ -53,29 +53,36 @@ impl Database {
         Ok(())
     }
 
-    pub fn insert(
+    pub fn add(
         &mut self,
+        remote: impl AsRef<str> + Into<String>,
         name: impl AsRef<str> + Into<String>,
         path: impl AsRef<str> + Into<String>,
         now: Epoch,
-    ) {
+    ) -> &Repo {
         self.with_repos_mut(|repos| {
-            if let None = repos.iter().find(|repo| repo.name == name.as_ref()) {
-                repos.push(Repo {
-                    name: name.into().into(),
-                    path: path.into().into(),
-                    last_accessed: now,
-                    accessed: 1,
-                });
-            }
+            repos.push(Repo {
+                remote: remote.into().into(),
+                name: name.into().into(),
+                path: path.into().into(),
+                last_accessed: now,
+                accessed: 0.0,
+            });
         });
-        self.with_dirty_mut(|d| *d = true);
+        match self.borrow_repos().iter().rev().next() {
+            Some(repo) => repo,
+            None => panic!("could not find the currently added repo"),
+        }
     }
 
-    pub fn get(&self, name: impl AsRef<str> + Into<String>) -> Option<&Repo> {
+    pub fn get(
+        &self,
+        remote: impl AsRef<str> + Into<String>,
+        name: impl AsRef<str> + Into<String>,
+    ) -> Option<&Repo> {
         self.borrow_repos()
             .iter()
-            .find(|repo| repo.name == name.as_ref())
+            .find(|repo| repo.remote == remote.as_ref() && repo.name == name.as_ref())
     }
 
     pub fn get_by_path(&self, path: impl AsRef<str> + Into<String>) -> Option<&Repo> {
@@ -84,10 +91,68 @@ impl Database {
             .find(|repo| repo.path == path.as_ref())
     }
 
+    pub fn get_latest(&self) -> Option<&Repo> {
+        let mut result: Option<&Repo> = None;
+        self.with_repos(|repos| {
+            for repo in repos {
+                match result {
+                    None => result = Some(repo),
+                    Some(cur) if repo.last_accessed > cur.last_accessed => result = Some(repo),
+                    Some(_) => {}
+                }
+            }
+        });
+        result
+    }
+
+    pub fn contains(&self, query: impl AsRef<str> + Into<String>) -> Option<&Repo> {
+        self.borrow_repos()
+            .iter()
+            .find(|repo| repo.name.contains(query.as_ref()))
+    }
+
+    pub fn contains_remote(
+        &self,
+        remote: impl AsRef<str> + Into<String>,
+        query: impl AsRef<str> + Into<String>,
+    ) -> Option<&Repo> {
+        self.borrow_repos()
+            .iter()
+            .find(|repo| repo.remote == remote.as_ref() && repo.name.contains(query.as_ref()))
+    }
+
+    pub fn contains_remote_prefix(
+        &self,
+        remote: impl AsRef<str> + Into<String>,
+        prefix: impl AsRef<str> + Into<String>,
+        query: impl AsRef<str> + Into<String>,
+    ) -> Option<&Repo> {
+        self.borrow_repos().iter().find(|repo| {
+            if repo.remote != remote.as_ref() {
+                return false;
+            }
+            match repo.name.strip_prefix(prefix.as_ref()) {
+                Some(base) => base.contains(query.as_ref()),
+                None => false,
+            }
+        })
+    }
+
+    pub fn list_remote(&self, remote: impl AsRef<str> + Into<String>) -> Vec<&Repo> {
+        self.borrow_repos()
+            .iter()
+            .filter(|repo| repo.name.starts_with(remote.as_ref()))
+            .collect()
+    }
+
+    pub fn list(&self) -> Vec<&Repo> {
+        self.borrow_repos().iter().collect()
+    }
+
     pub fn update(&mut self, name: impl AsRef<str> + Into<String>, now: Epoch) {
         self.with_repos_mut(|repos| {
             if let Some(repo) = repos.iter_mut().find(|repo| repo.name == name.as_ref()) {
-                repo.accessed += 1;
+                repo.accessed += 1.0;
                 repo.last_accessed = now;
             }
         });
@@ -120,6 +185,15 @@ impl Database {
 
     pub fn dirty(&self) -> bool {
         *self.borrow_dirty()
+    }
+
+    pub fn sort(&mut self, now: Epoch) {
+        self.with_repos_mut(|repos| {
+            repos.sort_unstable_by(|repo1: &Repo, repo2: &Repo| {
+                repo1.score(now).total_cmp(&repo2.score(now))
+            })
+        });
+        self.with_dirty_mut(|d| *d = true);
     }
 
     fn serialize(repos: &[Repo<'_>]) -> Result<Vec<u8>> {
