@@ -1,5 +1,6 @@
 use anyhow::bail;
 use anyhow::{Context, Result};
+use console::style;
 use serde::Deserialize;
 
 use std::collections::HashMap;
@@ -10,10 +11,10 @@ use std::path::PathBuf;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    workspace: String,
+    pub workspace: String,
 
     #[serde(default = "empty_vec")]
-    remotes: Vec<Remote>,
+    pub remotes: Vec<Remote>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -26,27 +27,27 @@ pub struct Remote {
 
 #[derive(Deserialize, Debug)]
 pub struct User {
-    name: String,
-    email: String,
+    pub name: String,
+    pub email: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Clone {
-    domain: String,
+    pub domain: String,
 
     #[serde(default = "default_bool")]
-    use_ssh: bool,
+    pub use_ssh: bool,
 
     #[serde(default = "empty_string")]
-    ssh_groups: String,
+    pub ssh_groups: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct API {
-    provider: Provider,
+    pub provider: Provider,
 
     #[serde(default = "empty_string")]
-    token: String,
+    pub token: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -151,7 +152,7 @@ impl Config {
     pub fn must_get_remote<'a>(&'a self, name: &str) -> Result<&'a Remote> {
         match self.get_remote(name) {
             Some(remote) => Ok(remote),
-            None => bail!("could not find remote {name}"),
+            None => bail!("could not find remote {}", style(name).yellow()),
         }
     }
 }

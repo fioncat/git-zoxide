@@ -1,7 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::mem;
-use std::ops::Index;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::SystemTime;
@@ -11,7 +10,7 @@ use anyhow::{bail, Context, Result};
 use crate::db::Epoch;
 use crate::errors::SilentExit;
 
-use console::{style, Term};
+use console::Term;
 use dialoguer::{theme::ColorfulTheme, Confirm};
 
 pub const SECOND: Epoch = 1;
@@ -19,7 +18,7 @@ pub const MINUTE: Epoch = 60 * SECOND;
 pub const HOUR: Epoch = 60 * MINUTE;
 pub const DAY: Epoch = 24 * HOUR;
 pub const WEEK: Epoch = 7 * DAY;
-pub const MONTH: Epoch = 30 * DAY;
+// pub const MONTH: Epoch = 30 * DAY;
 
 /// Similar to [`fs::write`], but atomic (best effort on Windows).
 pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<()> {
@@ -115,19 +114,19 @@ fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<()> {
     }
 }
 
-pub fn split_query(query: impl AsRef<str> + Into<String>) -> (String, String) {
+pub fn split_name<'a>(query: impl AsRef<str>) -> (String, String) {
     let items: Vec<_> = query.as_ref().split("/").collect();
     let items_len = items.len();
     let mut group_buffer: Vec<String> = Vec::with_capacity(items_len - 1);
-    let mut base = String::new();
+    let mut base = "";
     for (idx, item) in items.iter().enumerate() {
         if idx == items_len - 1 {
-            base = item.to_string();
+            base = item;
         } else {
             group_buffer.push(item.to_string());
         }
     }
-    (group_buffer.join("/"), base)
+    (group_buffer.join("/"), base.to_string())
 }
 
 pub fn current_time() -> Result<Epoch> {

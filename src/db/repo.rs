@@ -1,4 +1,6 @@
-use std::borrow::Cow;
+use std::{path::PathBuf, str::FromStr};
+
+use anyhow::{Context, Result};
 
 use serde::{Deserialize, Serialize};
 
@@ -7,22 +9,17 @@ use crate::util::{DAY, HOUR, WEEK};
 pub type Epoch = u64;
 pub type Rank = f64;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Repo<'a> {
-    #[serde(borrow)]
-    pub remote: Cow<'a, str>,
-
-    #[serde(borrow)]
-    pub name: Cow<'a, str>,
-
-    #[serde(borrow)]
-    pub path: Cow<'a, str>,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Repo {
+    pub remote: String,
+    pub name: String,
+    pub path: String,
 
     pub last_accessed: Epoch,
     pub accessed: Rank,
 }
 
-impl Repo<'_> {
+impl Repo {
     pub fn score(&self, now: Epoch) -> Rank {
         let duration = now.saturating_sub(self.last_accessed);
         if duration < HOUR {
@@ -33,6 +30,27 @@ impl Repo<'_> {
             self.accessed * 0.5
         } else {
             self.accessed * 0.25
+        }
+    }
+
+    pub fn path<S>(&self, workspace: S) -> Result<PathBuf>
+    where
+        S: AsRef<str>,
+    {
+        let buf = if !self.path.is_empty() {
+            PathBuf::from_str(&self.path)
+        } else {
+            PathBuf::from_str(workspace.as_ref())
+        };
+        match buf {
+            Ok(buf) => {
+                if self.path.is_empty() {
+                    Ok(buf.join(&self.name))
+                } else {
+                    Ok(buf)
+                }
+            }
+            Err(err) => Err(err).context("could not parse repo path"),
         }
     }
 }
