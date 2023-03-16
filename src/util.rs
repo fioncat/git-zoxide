@@ -1,9 +1,11 @@
+use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::str::FromStr;
 use std::time::SystemTime;
 
 use anyhow::{bail, Context, Result};
@@ -284,6 +286,94 @@ impl Git {
         match status.code() {
             Some(0) => Ok(output),
             _ => bail!(SilentExit { code: 101 }),
+        }
+    }
+}
+
+pub struct EmptyDir {
+    path: PathBuf,
+    subs: Vec<EmptyDir>,
+
+    empty: bool,
+    keep: bool,
+}
+
+impl EmptyDir {
+    pub fn scan<S, E>(path: S, exclude: &Vec<E>) -> Result<EmptyDir>
+    where
+        S: AsRef<str>,
+        E: AsRef<OsStr>,
+    {
+        let mut exclude_set: HashSet<&OsStr> = HashSet::with_capacity(exclude.len());
+        for s in exclude {
+            exclude_set.insert(s.as_ref());
+        }
+
+        let path = PathBuf::from_str(path.as_ref()).context("invalid scan path")?;
+        let mut root = EmptyDir {
+            path,
+            subs: vec![],
+            empty: false,
+            keep: false,
+        };
+        root.walk(&exclude_set)?;
+        root.mark();
+        Ok(root)
+    }
+
+    fn walk(&mut self, exclude: &HashSet<&OsStr>) -> Result<()> {
+        let subs = fs::read_dir(&self.path).with_context(|| {
+            format!(
+                "could not read directory {}",
+                PathBuf::from(&self.path).display()
+            )
+        })?;
+        let mut keep = false;
+        let mut sub_dirs = vec![];
+        for sub in subs {
+            let sub = sub.context("could not read sub directory")?;
+            let meta = sub
+                .metadata()
+                .context("could not read meta data for sub directory")?;
+            if meta.is_file() {
+                keep = true;
+                continue;
+            }
+            let sub_path = self.path.join(sub.file_name());
+            if let Some(_) = exclude.get(sub_path.as_os_str()) {
+                keep = true;
+                continue;
+            }
+            let mut sub_dir = EmptyDir {
+                path: sub_path,
+                subs: vec![],
+                empty: false,
+                keep: false,
+            };
+            sub_dir.walk(exclude)?;
+            sub_dirs.push(sub_dir);
+        }
+        if sub_dirs.is_empty() {
+            self.empty = true;
+            return Ok(());
+        }
+        self.keep = keep;
+        Ok(())
+    }
+
+    fn mark(&mut self) {
+        if self.subs.is_empty() {
+            return;
+        }
+        let mut empty = true;
+        for sub in &mut self.subs {
+            sub.mark();
+            if !sub.empty {
+                empty = false;
+            }
+        }
+        if !self.keep {
+            self.empty = empty;
         }
     }
 }
