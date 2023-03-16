@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::mem;
@@ -10,7 +11,7 @@ use anyhow::{bail, Context, Result};
 use crate::db::Epoch;
 use crate::errors::SilentExit;
 
-use console::Term;
+use console::{style, Term};
 use dialoguer::{theme::ColorfulTheme, Confirm};
 
 pub const SECOND: Epoch = 1;
@@ -158,7 +159,7 @@ const ERR_FZF_NOT_FOUND: &str = "could not find fzf, is it installed?";
 pub struct Fzf(Child);
 
 impl Fzf {
-    pub fn create() -> Result<Fzf> {
+    pub fn build() -> Result<Fzf> {
         // TODO: support Windows
         let program = "fzf";
         let mut cmd = Command::new(program);
@@ -205,6 +206,84 @@ impl Fzf {
             Some(130) => bail!(SilentExit { code: 130 }),
             Some(128..=254) | None => bail!("fzf was terminated"),
             _ => bail!("fzf returned an unknown error"),
+        }
+    }
+}
+
+const ERR_GIT_NOT_FOUND: &str = "could not find git, is it installed?";
+
+pub struct Git(Command);
+
+impl Git {
+    pub fn new() -> Git {
+        // TODO: support Windows
+        let program = "git";
+        let mut cmd = Command::new(program);
+        cmd.stdout(Stdio::piped());
+        Git(cmd)
+    }
+
+    pub fn with_path<S>(&mut self, path: S) -> &mut Self
+    where
+        S: AsRef<str>,
+    {
+        self.args(["-C", path.as_ref()]);
+        self
+    }
+
+    pub fn args<I, S>(&mut self, args: I) -> &mut Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.0.args(args);
+        self
+    }
+
+    pub fn arg<S>(&mut self, arg: S) -> &mut Self
+    where
+        S: AsRef<OsStr>,
+    {
+        self.0.arg(arg);
+        self
+    }
+
+    pub fn exec(&mut self) -> Result<String> {
+        let args = self.0.get_args();
+        let args: Vec<&OsStr> = args.collect();
+        let mut strs: Vec<&str> = Vec::with_capacity(args.len() + 1);
+        strs.push("git");
+        for arg in &args {
+            let str = match arg.to_str() {
+                Some(s) => s,
+                None => continue,
+            };
+            strs.push(str);
+        }
+        let cmd_str = strs.join(" ");
+        _ = writeln!(
+            io::stderr(),
+            "{} {}",
+            style("==>").cyan(),
+            style(cmd_str).bold()
+        );
+
+        let mut child = match self.0.spawn() {
+            Ok(child) => child,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => bail!(ERR_GIT_NOT_FOUND),
+            Err(e) => return Err(e).context("could not launch git"),
+        };
+
+        let mut stdout = child.stdout.take().unwrap();
+        let mut output = String::new();
+        stdout
+            .read_to_string(&mut output)
+            .context("failed to read from git")?;
+
+        let status = child.wait().context("wait failed on git")?;
+        match status.code() {
+            Some(0) => Ok(output),
+            _ => bail!(SilentExit { code: 101 }),
         }
     }
 }

@@ -7,13 +7,13 @@ use anyhow::Context;
 use anyhow::Result;
 use console::style;
 
+use crate::cmd::Home;
 use crate::cmd::Run;
-use crate::cmd::CD;
-use crate::config::{Clone, Config, Remote};
+use crate::config::{Clone, Config, Remote, User};
 use crate::db::{Database, Repo};
 use crate::util;
 
-impl Run for CD {
+impl Run for Home {
     fn run(&self) -> Result<()> {
         let mut db = Database::open()?;
         let cfg = Config::parse()?;
@@ -24,8 +24,13 @@ impl Run for CD {
         self.ensure_path(&cfg, &db.repos[repo_idx], remote)?;
         db.update(repo_idx, now);
 
-        println!("remote = {:?}", remote);
-        println!("repo = {:?}", &db.repos[repo_idx]);
+        let repo = &db.repos[repo_idx];
+        let path = repo.path(&cfg.workspace)?;
+        println!("{}", path.display());
+
+        for repo in &db.repos {
+            println!("{:?}", repo);
+        }
 
         db.sort(now);
         db.save()?;
@@ -34,14 +39,22 @@ impl Run for CD {
     }
 }
 
-impl CD {
+impl Home {
     fn query<'a>(&self, db: &mut Database, cfg: &'a Config) -> Result<(&'a Remote, usize)> {
         if self.args.is_empty() {
             if db.repos.is_empty() {
                 bail!("there is no repo in the database, please consider creating one")
             }
             let remote = cfg.must_get_remote(&db.repos[0].remote)?;
-            return Ok((remote, 0));
+            let mut last_access = 0;
+            let mut last_idx: usize = 0;
+            for (idx, repo) in db.repos.iter().enumerate() {
+                if repo.last_accessed > last_access {
+                    last_access = repo.last_accessed;
+                    last_idx = idx;
+                }
+            }
+            return Ok((remote, last_idx));
         }
 
         if self.args.len() == 1 {
@@ -105,7 +118,7 @@ impl CD {
             bail!("no matches repository with query {}", style(query).yellow())
         }
 
-        let mut fzf = util::Fzf::create()?;
+        let mut fzf = util::Fzf::build()?;
         Ok(items[fzf.query(&keys)?])
     }
 
@@ -140,7 +153,7 @@ impl CD {
         match fs::read_dir(&path) {
             Ok(_) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::NotFound => match &remote.clone {
-                Some(clone) => self.clone(repo, &clone),
+                Some(clone) => self.clone(repo, &clone, &path, &remote.user),
                 None => self.create_dir(&path),
             },
             Err(err) => Err(err)
@@ -148,7 +161,7 @@ impl CD {
         }
     }
 
-    fn clone(&self, repo: &Repo, clone: &Clone) -> Result<()> {
+    fn clone(&self, repo: &Repo, clone: &Clone, path: &PathBuf, user: &Option<User>) -> Result<()> {
         let mut ssh = clone.use_ssh;
         if !ssh && clone.ssh_groups != "" {
             let (group, _) = util::split_name(&repo.name);
@@ -163,7 +176,26 @@ impl CD {
             format!("https://{}/{}.git", clone.domain, repo.name)
         };
 
-        println!("git clone {}", url);
+        let path = match path.to_str() {
+            Some(path) => path,
+            None => bail!("could not parse path: {}", path.display()),
+        };
+
+        let mut git = util::Git::new();
+        git.arg("clone").args([url.as_str(), path]).exec()?;
+
+        if let Some(user) = user {
+            util::Git::new()
+                .with_path(path)
+                .args(["config", "user.name"])
+                .arg(&user.name)
+                .exec()?;
+            util::Git::new()
+                .with_path(path)
+                .args(["config", "user.email"])
+                .arg(&user.email)
+                .exec()?;
+        }
 
         Ok(())
     }

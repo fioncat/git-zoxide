@@ -1,5 +1,6 @@
 mod repo;
 
+use console::style;
 use std::{fs, io, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -73,6 +74,23 @@ impl Database {
         self.repos.len() - 1
     }
 
+    pub fn must_get<R, N>(&self, remote: R, name: N) -> Result<usize>
+    where
+        R: AsRef<str>,
+        N: AsRef<str>,
+    {
+        match self.repos.iter().position(|repo| {
+            repo.remote.as_str() == remote.as_ref() && repo.name.as_str() == name.as_ref()
+        }) {
+            Some(idx) => Ok(idx),
+            None => bail!(
+                "could not find repository {}:{}",
+                style(remote.as_ref()).yellow(),
+                style(name.as_ref()).yellow()
+            ),
+        }
+    }
+
     pub fn update(&mut self, idx: usize, now: Epoch) {
         let mut repo = &mut self.repos[idx];
         repo.last_accessed = now;
@@ -81,7 +99,7 @@ impl Database {
 
     pub fn sort(&mut self, now: Epoch) {
         self.repos.sort_unstable_by(|repo1: &Repo, repo2: &Repo| {
-            repo1.score(now).total_cmp(&repo2.score(now))
+            repo2.score(now).total_cmp(&repo1.score(now))
         })
     }
 
