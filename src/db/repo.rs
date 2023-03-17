@@ -4,7 +4,10 @@ use anyhow::{Context, Result};
 
 use serde::{Deserialize, Serialize};
 
-use crate::util::{DAY, HOUR, WEEK};
+use crate::{
+    config::Clone,
+    util::{self, DAY, HOUR, WEEK},
+};
 
 pub type Epoch = u64;
 pub type Rank = f64;
@@ -51,6 +54,22 @@ impl Repo {
                 }
             }
             Err(err) => Err(err).context("could not parse repo path"),
+        }
+    }
+
+    pub fn clone_url(&self, cfg: &Clone) -> String {
+        let mut ssh = cfg.use_ssh;
+        if !ssh && cfg.ssh_groups != "" {
+            let (group, _) = util::split_name(&self.name);
+            if let Some(_) = cfg.ssh_groups.split(';').find(|s| s == &group) {
+                ssh = true;
+            }
+        }
+
+        if ssh {
+            format!("git@{}:{}.git", cfg.domain, self.name)
+        } else {
+            format!("https://{}/{}.git", cfg.domain, self.name)
         }
     }
 }

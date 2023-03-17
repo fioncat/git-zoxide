@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::env;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -153,6 +154,22 @@ pub fn confirm(msg: impl AsRef<str> + Into<String>) -> Result<()> {
             Ok(())
         }
         Err(err) => Err(err).context("could not do confirm prompt"),
+    }
+}
+
+pub fn current_dir() -> Result<PathBuf> {
+    env::current_dir().context("could not get current dir")
+}
+
+pub fn str_to_path(s: impl AsRef<str>) -> Result<PathBuf> {
+    PathBuf::from_str(s.as_ref())
+        .with_context(|| format!("could not parse path {}", style(s.as_ref()).yellow()))
+}
+
+pub fn osstr_to_str<'a>(s: &'a OsStr) -> Result<&'a str> {
+    match s.to_str() {
+        Some(s) => Ok(s),
+        None => bail!("could not parse path {}", PathBuf::from(s).display()),
     }
 }
 

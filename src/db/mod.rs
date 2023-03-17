@@ -58,6 +58,15 @@ impl Database {
             .position(|repo| repo.remote == remote.as_ref() && repo.name == name.as_ref())
     }
 
+    pub fn get_by_path<S>(&self, path: S) -> Option<usize>
+    where
+        S: AsRef<str>,
+    {
+        self.repos
+            .iter()
+            .position(|repo| repo.path != "" && repo.path == path.as_ref())
+    }
+
     pub fn add<R, N, P>(&mut self, remote: R, name: N, path: P) -> usize
     where
         R: AsRef<str>,

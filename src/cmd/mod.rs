@@ -1,3 +1,4 @@
+mod attach;
 mod clean;
 mod home;
 mod remove;
@@ -11,6 +12,7 @@ pub enum Cmd {
     Home(Home),
     Remove(Remove),
     Clean(Clean),
+    Attach(Attach),
 }
 
 #[derive(Debug, Parser)]
@@ -24,10 +26,7 @@ pub struct Home {
 
 #[derive(Debug, Parser)]
 pub struct Remove {
-    #[clap(required = true)]
     pub remote: String,
-
-    #[clap(required = true)]
     pub name: String,
 
     #[clap(long, short)]
@@ -40,6 +39,24 @@ pub struct Clean {
     pub dry_run: bool,
 }
 
+#[derive(Debug, Parser)]
+pub struct Attach {
+    #[clap(required = true)]
+    pub remote: String,
+
+    #[clap(required = true)]
+    pub name: String,
+
+    #[clap(long, short)]
+    pub dir: Option<String>,
+
+    #[clap(long, short)]
+    pub remote_config: bool,
+
+    #[clap(long, short)]
+    pub user_config: bool,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -50,6 +67,7 @@ impl Run for Cmd {
             Cmd::Home(home) => home.run(),
             Cmd::Remove(remove) => remove.run(),
             Cmd::Clean(clean) => clean.run(),
+            Cmd::Attach(attach) => attach.run(),
         }
     }
 }

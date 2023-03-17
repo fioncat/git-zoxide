@@ -158,19 +158,7 @@ impl Home {
     }
 
     fn clone(&self, repo: &Repo, clone: &Clone, path: &PathBuf, user: &Option<User>) -> Result<()> {
-        let mut ssh = clone.use_ssh;
-        if !ssh && clone.ssh_groups != "" {
-            let (group, _) = util::split_name(&repo.name);
-            if let Some(_) = clone.ssh_groups.split(';').find(|s| s == &group) {
-                ssh = true;
-            }
-        }
-
-        let url = if ssh {
-            format!("git@{}:{}.git", clone.domain, repo.name)
-        } else {
-            format!("https://{}/{}.git", clone.domain, repo.name)
-        };
+        let url = repo.clone_url(clone);
 
         let path = match path.to_str() {
             Some(path) => path,
