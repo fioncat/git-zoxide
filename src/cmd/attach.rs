@@ -1,3 +1,6 @@
+use std::io;
+use std::io::Write;
+
 use anyhow::bail;
 use anyhow::Result;
 use console::style;
@@ -62,6 +65,8 @@ impl Run for Attach {
         }
 
         db.save()?;
+
+        _ = writeln!(io::stderr(), "{} attached", style(path_str).yellow());
         Ok(())
     }
 }

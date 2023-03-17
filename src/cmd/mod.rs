@@ -1,6 +1,8 @@
 mod attach;
 mod clean;
+mod detach;
 mod home;
+mod list;
 mod remove;
 
 use anyhow::Result;
@@ -13,6 +15,8 @@ pub enum Cmd {
     Remove(Remove),
     Clean(Clean),
     Attach(Attach),
+    Detach(Detach),
+    List(List),
 }
 
 #[derive(Debug, Parser)]
@@ -57,6 +61,18 @@ pub struct Attach {
     pub user_config: bool,
 }
 
+#[derive(Debug, Parser)]
+pub struct Detach {
+    #[clap(long, short)]
+    pub dir: Option<String>,
+}
+
+#[derive(Debug, Parser)]
+pub struct List {
+    #[clap(num_args = 0..=1)]
+    pub args: Vec<String>,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -68,6 +84,8 @@ impl Run for Cmd {
             Cmd::Remove(remove) => remove.run(),
             Cmd::Clean(clean) => clean.run(),
             Cmd::Attach(attach) => attach.run(),
+            Cmd::Detach(detach) => detach.run(),
+            Cmd::List(list) => list.run(),
         }
     }
 }

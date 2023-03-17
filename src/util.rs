@@ -162,8 +162,14 @@ pub fn current_dir() -> Result<PathBuf> {
 }
 
 pub fn str_to_path(s: impl AsRef<str>) -> Result<PathBuf> {
-    PathBuf::from_str(s.as_ref())
-        .with_context(|| format!("could not parse path {}", style(s.as_ref()).yellow()))
+    let path = PathBuf::from_str(s.as_ref())
+        .with_context(|| format!("could not parse path {}", style(s.as_ref()).yellow()))?;
+    fs::canonicalize(&path).with_context(|| {
+        format!(
+            "could not get absolute path for {}",
+            style(s.as_ref()).yellow()
+        )
+    })
 }
 
 pub fn osstr_to_str<'a>(s: &'a OsStr) -> Result<&'a str> {
