@@ -2,6 +2,7 @@ mod attach;
 mod clean;
 mod detach;
 mod home;
+mod init;
 mod list;
 mod remove;
 
@@ -17,6 +18,7 @@ pub enum Cmd {
     Attach(Attach),
     Detach(Detach),
     List(List),
+    Init(Init),
 }
 
 #[derive(Debug, Parser)]
@@ -71,6 +73,18 @@ pub struct Detach {
 pub struct List {
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
+
+    #[clap(long, short)]
+    pub group: bool,
+}
+
+#[derive(Debug, Parser)]
+pub struct Init {
+    #[clap(long)]
+    pub cmd: Option<String>,
+
+    #[clap(long)]
+    pub home_cmd: Option<String>,
 }
 
 pub trait Run {
@@ -86,6 +100,7 @@ impl Run for Cmd {
             Cmd::Attach(attach) => attach.run(),
             Cmd::Detach(detach) => detach.run(),
             Cmd::List(list) => list.run(),
+            Cmd::Init(init) => init.run(),
         }
     }
 }

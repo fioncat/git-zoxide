@@ -8,12 +8,13 @@ mod errors;
 mod util;
 
 use clap::Parser;
-use console::style;
+use console::{self, style};
 
 use crate::cmd::{Cmd, Run};
 use crate::errors::SilentExit;
 
 fn main() -> ExitCode {
+    console::set_colors_enabled(true);
     match Cmd::parse().run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => match err.downcast::<SilentExit>() {
