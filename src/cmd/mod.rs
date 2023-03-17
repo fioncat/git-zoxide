@@ -1,3 +1,4 @@
+mod clean;
 mod home;
 mod remove;
 
@@ -9,6 +10,7 @@ use clap::Parser;
 pub enum Cmd {
     Home(Home),
     Remove(Remove),
+    Clean(Clean),
 }
 
 #[derive(Debug, Parser)]
@@ -32,6 +34,12 @@ pub struct Remove {
     pub force: bool,
 }
 
+#[derive(Debug, Parser)]
+pub struct Clean {
+    #[clap(long)]
+    pub dry_run: bool,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -41,6 +49,7 @@ impl Run for Cmd {
         match self {
             Cmd::Home(home) => home.run(),
             Cmd::Remove(remove) => remove.run(),
+            Cmd::Clean(clean) => clean.run(),
         }
     }
 }

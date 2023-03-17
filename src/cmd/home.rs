@@ -28,10 +28,6 @@ impl Run for Home {
         let path = repo.path(&cfg.workspace)?;
         println!("{}", path.display());
 
-        for repo in &db.repos {
-            println!("{:?}", repo);
-        }
-
         db.sort(now);
         db.save()?;
 

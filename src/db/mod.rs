@@ -91,6 +91,15 @@ impl Database {
         }
     }
 
+    pub fn list_paths(&self, workspace: &String) -> Result<Vec<PathBuf>> {
+        let mut paths: Vec<PathBuf> = Vec::with_capacity(self.repos.len());
+        for repo in &self.repos {
+            let path = repo.path(workspace)?;
+            paths.push(path);
+        }
+        Ok(paths)
+    }
+
     pub fn update(&mut self, idx: usize, now: Epoch) {
         let mut repo = &mut self.repos[idx];
         repo.last_accessed = now;

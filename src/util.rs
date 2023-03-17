@@ -299,14 +299,13 @@ pub struct EmptyDir {
 }
 
 impl EmptyDir {
-    pub fn scan<S, E>(path: S, exclude: &Vec<E>) -> Result<EmptyDir>
+    pub fn scan<S>(path: S, exclude: &Vec<PathBuf>) -> Result<EmptyDir>
     where
         S: AsRef<str>,
-        E: AsRef<OsStr>,
     {
-        let mut exclude_set: HashSet<&OsStr> = HashSet::with_capacity(exclude.len());
+        let mut exclude_set: HashSet<&PathBuf> = HashSet::with_capacity(exclude.len());
         for s in exclude {
-            exclude_set.insert(s.as_ref());
+            exclude_set.insert(&s);
         }
 
         let path = PathBuf::from_str(path.as_ref()).context("invalid scan path")?;
@@ -314,34 +313,41 @@ impl EmptyDir {
             path,
             subs: vec![],
             empty: false,
-            keep: false,
+            keep: true,
         };
         root.walk(&exclude_set)?;
         root.mark();
+        root.keep = true;
         Ok(root)
     }
 
-    fn walk(&mut self, exclude: &HashSet<&OsStr>) -> Result<()> {
-        let subs = fs::read_dir(&self.path).with_context(|| {
-            format!(
-                "could not read directory {}",
-                PathBuf::from(&self.path).display()
-            )
-        })?;
-        let mut keep = false;
-        let mut sub_dirs = vec![];
+    fn walk(&mut self, exclude: &HashSet<&PathBuf>) -> Result<()> {
+        let subs = match fs::read_dir(&self.path) {
+            Ok(dir) => dir,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                return Ok(());
+            }
+            Err(err) => {
+                return Err(err)
+                    .with_context(|| format!("could not read dir {}", self.path.display()));
+            }
+        };
         for sub in subs {
             let sub = sub.context("could not read sub directory")?;
             let meta = sub
                 .metadata()
                 .context("could not read meta data for sub directory")?;
-            if meta.is_file() {
-                keep = true;
+            if !meta.is_dir() {
+                self.keep = true;
+                continue;
+            }
+            if sub.file_name() == ".git" {
+                self.keep = true;
                 continue;
             }
             let sub_path = self.path.join(sub.file_name());
-            if let Some(_) = exclude.get(sub_path.as_os_str()) {
-                keep = true;
+            if let Some(_) = exclude.get(&sub_path) {
+                self.keep = true;
                 continue;
             }
             let mut sub_dir = EmptyDir {
@@ -351,13 +357,12 @@ impl EmptyDir {
                 keep: false,
             };
             sub_dir.walk(exclude)?;
-            sub_dirs.push(sub_dir);
+            self.subs.push(sub_dir);
         }
-        if sub_dirs.is_empty() {
+        if self.subs.is_empty() {
             self.empty = true;
             return Ok(());
         }
-        self.keep = keep;
         Ok(())
     }
 
@@ -365,15 +370,35 @@ impl EmptyDir {
         if self.subs.is_empty() {
             return;
         }
-        let mut empty = true;
         for sub in &mut self.subs {
             sub.mark();
             if !sub.empty {
-                empty = false;
+                self.empty = false;
             }
         }
-        if !self.keep {
-            self.empty = empty;
+    }
+
+    pub fn list<'a>(&'a self, list: &mut Vec<&'a OsStr>) {
+        if self.empty && !self.keep {
+            list.push(self.path.as_os_str());
+            return;
         }
+        for sub in &self.subs {
+            sub.list(list);
+        }
+    }
+
+    pub fn clean(&self) -> Result<()> {
+        if self.empty && !self.keep {
+            return fs::remove_dir(&self.path).with_context(|| {
+                format!("could not remove empty directory {}", self.path.display())
+            });
+        }
+        for sub in &self.subs {
+            if let Err(err) = sub.clean() {
+                return Err(err);
+            }
+        }
+        Ok(())
     }
 }

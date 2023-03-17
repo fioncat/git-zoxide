@@ -18,7 +18,7 @@ impl Run for Remove {
         let cfg = Config::parse()?;
 
         let idx = db.must_get(&self.remote, &self.name)?;
-        self.ensure_path(&cfg, &db.repos[idx])?;
+        self.ensure_path(&db, &cfg, &db.repos[idx])?;
 
         db.repos.remove(idx);
         db.save()?;
@@ -27,7 +27,7 @@ impl Run for Remove {
 }
 
 impl Remove {
-    fn ensure_path(&self, cfg: &Config, repo: &Repo) -> Result<()> {
+    fn ensure_path(&self, db: &Database, cfg: &Config, repo: &Repo) -> Result<()> {
         let path = repo.path(&cfg.workspace)?;
         match fs::read_dir(&path) {
             Ok(_) => {
@@ -43,6 +43,9 @@ impl Remove {
                 }
                 if remove {
                     fs::remove_dir_all(&path)?;
+                    let paths = db.list_paths(&cfg.workspace)?;
+                    let empty_dir = util::EmptyDir::scan(&cfg.workspace, &paths)?;
+                    empty_dir.clean()?;
                 }
                 Ok(())
             }
