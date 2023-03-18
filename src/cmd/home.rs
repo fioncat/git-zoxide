@@ -7,6 +7,7 @@ use anyhow::Context;
 use anyhow::Result;
 use console::style;
 
+use crate::api;
 use crate::cmd::Home;
 use crate::cmd::Run;
 use crate::config::{Clone, Config, Remote, User};
@@ -70,6 +71,10 @@ impl Home {
         let name = &self.args[1];
 
         if name.ends_with("/") {
+            let name = name.trim_end_matches("/");
+            if self.search {
+                return Ok((remote, self.search_repo_remote(db, remote, name)?));
+            }
             return Ok((remote, self.search_repo(db, remote_name, name)?));
         }
 
@@ -82,8 +87,7 @@ impl Home {
             }
         }
 
-        util::confirm(format!("do you want to create {}", style(name).yellow()))?;
-        Ok((remote, db.add(remote_name, name, "")))
+        Ok((remote, self.create_repo(db, remote_name, name)?))
     }
 
     fn search_repo<R, Q>(&self, db: &Database, remote: R, query: Q) -> Result<usize>
@@ -91,15 +95,13 @@ impl Home {
         R: AsRef<str>,
         Q: AsRef<str>,
     {
-        let query = query.as_ref().trim_end_matches("/");
-
         let mut items: Vec<usize> = Vec::with_capacity(db.repos.len());
         let mut keys: Vec<&str> = Vec::with_capacity(db.repos.len());
         for (idx, repo) in db.repos.iter().enumerate() {
             if repo.remote != remote.as_ref() {
                 continue;
             }
-            let key = match repo.name.strip_prefix(query) {
+            let key = match repo.name.strip_prefix(query.as_ref()) {
                 Some(s) => s.trim_matches('/'),
                 None => continue,
             };
@@ -111,11 +113,50 @@ impl Home {
         }
 
         if items.is_empty() {
-            bail!("no matches repository with query {}", style(query).yellow())
+            bail!(
+                "no matches repository with query {}",
+                style(query.as_ref()).yellow()
+            )
         }
 
         let mut fzf = util::Fzf::build()?;
         Ok(items[fzf.query(&keys)?])
+    }
+
+    fn search_repo_remote(
+        &self,
+        db: &mut Database,
+        remote: &Remote,
+        query: impl AsRef<str>,
+    ) -> Result<usize> {
+        let provider = api::create_provider(remote)?;
+
+        util::print_operation(format!(
+            "call provider api to list repo for {}",
+            style(query.as_ref()).yellow()
+        ));
+        let repo_names = provider.list(query.as_ref())?;
+
+        let mut fzf = util::Fzf::build()?;
+        let idx = fzf.query(&repo_names)?;
+
+        let repo_name = &repo_names[idx];
+        if let Some(idx) = db.get(&remote.name, repo_name) {
+            return Ok(idx);
+        }
+        self.create_repo(db, &remote.name, repo_name)
+    }
+
+    fn create_repo<R, N>(&self, db: &mut Database, remote: R, name: N) -> Result<usize>
+    where
+        R: AsRef<str>,
+        N: AsRef<str>,
+    {
+        util::confirm(format!(
+            "do you want to create {}",
+            style(name.as_ref()).yellow()
+        ))?;
+        Ok(db.add(remote.as_ref(), name.as_ref(), ""))
     }
 
     fn match_repo<R, Q>(&self, db: &Database, remote: R, query: Q) -> Result<usize>

@@ -179,6 +179,10 @@ pub fn osstr_to_str<'a>(s: &'a OsStr) -> Result<&'a str> {
     }
 }
 
+pub fn print_operation(s: impl AsRef<str>) {
+    _ = writeln!(io::stderr(), "{} {}", style("==>").green(), s.as_ref());
+}
+
 const ERR_FZF_NOT_FOUND: &str = "could not find fzf, is it installed?";
 
 pub struct Fzf(Child);

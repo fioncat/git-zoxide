@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::process::ExitCode;
 
+mod api;
 mod cmd;
 mod config;
 mod db;
@@ -13,7 +14,8 @@ use console::{self, style};
 use crate::cmd::{Cmd, Run};
 use crate::errors::SilentExit;
 
-fn main() -> ExitCode {
+#[tokio::main]
+async fn main() -> ExitCode {
     console::set_colors_enabled(true);
     match Cmd::parse().run() {
         Ok(()) => ExitCode::SUCCESS,

@@ -28,6 +28,9 @@ pub struct Home {
 
     #[clap(long, short)]
     pub create: bool,
+
+    #[clap(long, short)]
+    pub search: bool,
 }
 
 #[derive(Debug, Parser)]
