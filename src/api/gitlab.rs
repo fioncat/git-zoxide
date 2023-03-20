@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use gitlab::api::{groups, Query};
+use gitlab::api::{self, groups, Query};
 use gitlab::types::Project;
 
 use crate::api::Provider;
@@ -29,7 +29,7 @@ impl Provider for Gitlab {
             .group(group)
             .build()
             .context("unable to build gitlab group endpoint")?;
-        let projects: Vec<Project> = endpoint
+        let projects: Vec<Project> = api::paged(endpoint, api::Pagination::All)
             .query(&self.client)
             .context("unable to query gitlab projects")?;
 
