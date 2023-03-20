@@ -12,7 +12,7 @@ use crate::cmd::Home;
 use crate::cmd::Run;
 use crate::config::{Clone, Config, Remote, User};
 use crate::db::{Database, Repo};
-use crate::util;
+use crate::util::{self, Shell};
 
 impl Run for Home {
     fn run(&self) -> Result<()> {
@@ -209,22 +209,19 @@ impl Home {
     fn clone(&self, repo: &Repo, clone: &Clone, path: &PathBuf, user: &Option<User>) -> Result<()> {
         let url = repo.clone_url(clone);
 
-        let path = match path.to_str() {
-            Some(path) => path,
-            None => bail!("could not parse path: {}", path.display()),
-        };
+        let path = util::path_to_str(path)?;
 
-        let mut git = util::Git::new();
+        let mut git = Shell::git();
         git.arg("clone").args([url.as_str(), path]).exec()?;
 
         if let Some(user) = user {
-            util::Git::new()
-                .with_path(path)
+            Shell::git()
+                .with_git_path(path)
                 .args(["config", "user.name"])
                 .arg(&user.name)
                 .exec()?;
-            util::Git::new()
-                .with_path(path)
+            Shell::git()
+                .with_git_path(path)
                 .args(["config", "user.email"])
                 .arg(&user.email)
                 .exec()?;
@@ -234,7 +231,11 @@ impl Home {
     }
 
     fn create_dir(&self, path: &PathBuf) -> Result<()> {
-        fs::create_dir_all(&path)
-            .with_context(|| format!("unable to create repository directory: {}", path.display()))
+        fs::create_dir_all(&path).with_context(|| {
+            format!("unable to create repository directory: {}", path.display())
+        })?;
+        let path = util::path_to_str(path)?;
+        Shell::git().with_git_path(path).arg("init").exec()?;
+        Ok(())
     }
 }

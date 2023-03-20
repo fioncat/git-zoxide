@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::env;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::mem;
@@ -179,6 +179,13 @@ pub fn osstr_to_str<'a>(s: &'a OsStr) -> Result<&'a str> {
     }
 }
 
+pub fn path_to_str<'a>(path: &'a PathBuf) -> Result<&'a str> {
+    match path.to_str() {
+        Some(path) => Ok(path),
+        None => bail!("could not parse path: {}", path.display()),
+    }
+}
+
 pub fn print_operation(s: impl AsRef<str>) {
     _ = writeln!(io::stderr(), "{} {}", style("==>").green(), s.as_ref());
 }
@@ -239,20 +246,31 @@ impl Fzf {
     }
 }
 
-const ERR_GIT_NOT_FOUND: &str = "could not find git, is it installed?";
+pub struct Shell {
+    cmd: Command,
+    program: OsString,
+}
 
-pub struct Git(Command);
-
-impl Git {
-    pub fn new() -> Git {
-        // TODO: support Windows
-        let program = "git";
-        let mut cmd = Command::new(program);
+impl Shell {
+    pub fn new(name: impl AsRef<OsStr>) -> Shell {
+        let mut cmd = Command::new(name.as_ref());
         cmd.stdout(Stdio::piped());
-        Git(cmd)
+        Shell {
+            cmd,
+            program: name.as_ref().to_os_string(),
+        }
     }
 
-    pub fn with_path<S>(&mut self, path: S) -> &mut Self
+    pub fn git() -> Shell {
+        Self::new("git")
+    }
+
+    pub fn with_path(&mut self, path: &PathBuf) -> &mut Self {
+        self.cmd.current_dir(path);
+        self
+    }
+
+    pub fn with_git_path<S>(&mut self, path: S) -> &mut Self
     where
         S: AsRef<str>,
     {
@@ -265,7 +283,7 @@ impl Git {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        self.0.args(args);
+        self.cmd.args(args);
         self
     }
 
@@ -273,15 +291,49 @@ impl Git {
     where
         S: AsRef<OsStr>,
     {
-        self.0.arg(arg);
+        self.cmd.arg(arg);
         self
     }
 
-    pub fn exec(&mut self) -> Result<String> {
-        let args = self.0.get_args();
+    pub fn exec(&mut self) -> Result<()> {
+        let output = self.output()?;
+        if !output.is_empty() {
+            println!("{}", output);
+        }
+        Ok(())
+    }
+
+    pub fn output(&mut self) -> Result<String> {
+        let program = osstr_to_str(&self.program)?;
+        self.print_cmd(program)?;
+        let mut child = match self.cmd.spawn() {
+            Ok(child) => child,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                bail!("could not find command {}", "")
+            }
+            Err(e) => return Err(e).with_context(|| format!("could not launch {}", "")),
+        };
+
+        let mut stdout = child.stdout.take().unwrap();
+        let mut output = String::new();
+        stdout
+            .read_to_string(&mut output)
+            .with_context(|| format!("failed to read from {}", program))?;
+
+        let status = child
+            .wait()
+            .with_context(|| format!("failed to wait for {}", program))?;
+        match status.code() {
+            Some(0) => Ok(output),
+            _ => bail!(SilentExit { code: 101 }),
+        }
+    }
+
+    fn print_cmd(&self, program: &str) -> Result<()> {
+        let args = self.cmd.get_args();
         let args: Vec<&OsStr> = args.collect();
         let mut strs: Vec<&str> = Vec::with_capacity(args.len() + 1);
-        strs.push("git");
+        strs.push(program);
         for arg in &args {
             let str = match arg.to_str() {
                 Some(s) => s,
@@ -296,24 +348,7 @@ impl Git {
             style("==>").cyan(),
             style(cmd_str).bold()
         );
-
-        let mut child = match self.0.spawn() {
-            Ok(child) => child,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => bail!(ERR_GIT_NOT_FOUND),
-            Err(e) => return Err(e).context("could not launch git"),
-        };
-
-        let mut stdout = child.stdout.take().unwrap();
-        let mut output = String::new();
-        stdout
-            .read_to_string(&mut output)
-            .context("failed to read from git")?;
-
-        let status = child.wait().context("wait failed on git")?;
-        match status.code() {
-            Some(0) => Ok(output),
-            _ => bail!(SilentExit { code: 101 }),
-        }
+        Ok(())
     }
 }
 

@@ -23,6 +23,7 @@ pub struct Remote {
     pub user: Option<User>,
     pub clone: Option<Clone>,
     pub api: Option<API>,
+    pub on_create: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
