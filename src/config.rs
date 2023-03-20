@@ -48,6 +48,9 @@ pub struct API {
 
     #[serde(default = "empty_string")]
     pub token: String,
+
+    #[serde(default = "empty_string")]
+    pub url: String,
 }
 
 #[derive(Deserialize, Debug)]
