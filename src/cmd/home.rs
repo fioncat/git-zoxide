@@ -136,9 +136,17 @@ impl Home {
             style(query.as_ref()).yellow()
         ));
         let repo_names = provider.list(query.as_ref())?;
+        let mut keys = Vec::with_capacity(repo_names.len());
+        for repo_name in &repo_names {
+            let key = match repo_name.strip_prefix(query.as_ref()) {
+                Some(key) => key.trim_matches('/'),
+                None => continue,
+            };
+            keys.push(key);
+        }
 
         let mut fzf = util::Fzf::build()?;
-        let idx = fzf.query(&repo_names)?;
+        let idx = fzf.query(&keys)?;
 
         let repo_name = &repo_names[idx];
         if let Some(idx) = db.get(&remote.name, repo_name) {

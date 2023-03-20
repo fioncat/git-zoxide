@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use octocrab::{initialise, models, Octocrab};
+use octocrab::{auth, initialise, models, Octocrab};
 use serde::Serialize;
 use tokio::runtime::Runtime;
 
@@ -21,9 +21,13 @@ struct GithubQueryOption {
 
 impl Github {
     const QUERY_PER_PAGE: u32 = 200;
+
     pub fn new(token: impl AsRef<str>) -> Result<Box<dyn Provider>> {
-        println!("token is: {}", token.as_ref());
-        let builder = Octocrab::builder().personal_token(token.as_ref().to_string());
+        let builder = Octocrab::builder().oauth(auth::OAuth {
+            access_token: secrecy::SecretString::new(token.as_ref().to_string()),
+            token_type: "Bearer".to_string(),
+            scope: vec![],
+        });
         let instance = initialise(builder)?;
         let runtime = Runtime::new().context("unable to create tokio runtime")?;
         let query_opt = GithubQueryOption {
