@@ -42,7 +42,7 @@ impl Run for Attach {
         if self.remote_config {
             if let Some(clone) = &remote.clone {
                 let url = db.repos[idx].clone_url(clone);
-                util::Shell::git()
+                util::Shell::git()?
                     .with_git_path(path_str)
                     .args(["remote", "set-url", "origin"])
                     .arg(url)
@@ -51,12 +51,12 @@ impl Run for Attach {
         }
         if self.user_config {
             if let Some(user) = &remote.user {
-                util::Shell::git()
+                util::Shell::git()?
                     .with_git_path(path_str)
                     .args(["config", "user.name"])
                     .arg(&user.name)
                     .exec()?;
-                util::Shell::git()
+                util::Shell::git()?
                     .with_git_path(path_str)
                     .args(["config", "user.email"])
                     .arg(&user.email)

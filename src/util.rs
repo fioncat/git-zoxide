@@ -179,6 +179,10 @@ pub fn osstr_to_str<'a>(s: &'a OsStr) -> Result<&'a str> {
     }
 }
 
+pub fn str_to_osstr(s: &str) -> Result<OsString> {
+    OsString::from_str(s).with_context(|| format!("could not parse string {}", s))
+}
+
 pub fn path_to_str<'a>(path: &'a PathBuf) -> Result<&'a str> {
     match path.to_str() {
         Some(path) => Ok(path),
@@ -252,17 +256,23 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new(name: impl AsRef<OsStr>) -> Shell {
-        let mut cmd = Command::new(name.as_ref());
+    pub fn new(name: impl AsRef<str>) -> Result<Shell> {
+        let name = str_to_osstr(name.as_ref())?;
+        let mut cmd = Command::new(&name);
         cmd.stdout(Stdio::piped());
-        Shell {
-            cmd,
-            program: name.as_ref().to_os_string(),
-        }
+        Ok(Shell { cmd, program: name })
     }
 
-    pub fn git() -> Shell {
+    pub fn git() -> Result<Shell> {
         Self::new("git")
+    }
+
+    pub fn bash(script: impl AsRef<str>) -> Result<Shell> {
+        let mut shell = Self::new("bash")?;
+        shell.arg("-c");
+        let sciprt = str_to_osstr(script.as_ref())?;
+        shell.arg(&sciprt);
+        Ok(shell)
     }
 
     pub fn with_path(&mut self, path: &PathBuf) -> &mut Self {
@@ -295,10 +305,19 @@ impl Shell {
         self
     }
 
+    pub fn env<K, V>(&mut self, key: K, val: V) -> &mut Self
+    where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        self.cmd.env(key, val);
+        self
+    }
+
     pub fn exec(&mut self) -> Result<()> {
         let output = self.output()?;
         if !output.is_empty() {
-            println!("{}", output);
+            _ = write!(io::stderr(), "{}", output);
         }
         Ok(())
     }

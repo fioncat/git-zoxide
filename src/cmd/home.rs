@@ -199,7 +199,7 @@ impl Home {
             Ok(_) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::NotFound => match &remote.clone {
                 Some(clone) => self.clone(repo, &clone, &path, &remote.user),
-                None => self.create_dir(&path),
+                None => self.create_dir(repo, remote, &path),
             },
             Err(err) => Err(err)
                 .with_context(|| format!("could not read repository directory {}", path.display())),
@@ -211,16 +211,16 @@ impl Home {
 
         let path = util::path_to_str(path)?;
 
-        let mut git = Shell::git();
+        let mut git = Shell::git()?;
         git.arg("clone").args([url.as_str(), path]).exec()?;
 
         if let Some(user) = user {
-            Shell::git()
+            Shell::git()?
                 .with_git_path(path)
                 .args(["config", "user.name"])
                 .arg(&user.name)
                 .exec()?;
-            Shell::git()
+            Shell::git()?
                 .with_git_path(path)
                 .args(["config", "user.email"])
                 .arg(&user.email)
@@ -230,12 +230,32 @@ impl Home {
         Ok(())
     }
 
-    fn create_dir(&self, path: &PathBuf) -> Result<()> {
+    fn create_dir(&self, repo: &Repo, remote: &Remote, path: &PathBuf) -> Result<()> {
         fs::create_dir_all(&path).with_context(|| {
             format!("unable to create repository directory: {}", path.display())
         })?;
-        let path = util::path_to_str(path)?;
-        Shell::git().with_git_path(path).arg("init").exec()?;
+        let path_str = util::path_to_str(path)?;
+        Shell::git()?.with_git_path(path_str).arg("init").exec()?;
+        self.after_create(repo, remote, path)
+    }
+
+    fn after_create(&self, repo: &Repo, remote: &Remote, path: &PathBuf) -> Result<()> {
+        if let Some(script) = &remote.on_create {
+            let lines: Vec<&str> = script.split("\n").collect();
+            for line in lines {
+                if line.is_empty() {
+                    continue;
+                }
+                let mut bash = Shell::bash(line)?;
+
+                bash.env("REPO_NAME", &repo.name);
+                bash.env("REMOTE", &remote.name);
+
+                bash.with_path(path);
+
+                bash.exec()?;
+            }
+        }
         Ok(())
     }
 }
