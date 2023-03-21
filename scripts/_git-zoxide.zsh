@@ -5,6 +5,7 @@ _GIT_ZOXIDE_CMDS=( \
 	"home" \
 	"list" \
 	"remove" \
+	"config" \
 )
 
 _git-zoxide() {

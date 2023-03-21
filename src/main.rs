@@ -14,8 +14,7 @@ use console::{self, style};
 use crate::cmd::{Cmd, Run};
 use crate::errors::SilentExit;
 
-#[tokio::main]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
     console::set_colors_enabled(true);
     match Cmd::parse().run() {
         Ok(()) => ExitCode::SUCCESS,

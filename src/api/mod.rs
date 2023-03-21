@@ -1,4 +1,5 @@
 mod github;
+mod gitlab;
 
 use anyhow::{bail, Result};
 use console::style;
@@ -19,6 +20,6 @@ pub fn create_provider(remote: &Remote) -> Result<Box<dyn Provider>> {
     let api = remote.api.as_ref().unwrap();
     match api.provider {
         config::Provider::Github => github::Github::new(&api.token),
-        config::Provider::Gitlab => bail!("currently we do not support gitlab"),
+        config::Provider::Gitlab => gitlab::Gitlab::new(&api.url, &api.token),
     }
 }

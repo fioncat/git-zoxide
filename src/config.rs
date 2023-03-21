@@ -23,6 +23,7 @@ pub struct Remote {
     pub user: Option<User>,
     pub clone: Option<Clone>,
     pub api: Option<API>,
+    pub on_create: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -48,6 +49,9 @@ pub struct API {
 
     #[serde(default = "empty_string")]
     pub token: String,
+
+    #[serde(default = "empty_string")]
+    pub url: String,
 }
 
 #[derive(Deserialize, Debug)]

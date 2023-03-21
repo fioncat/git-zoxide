@@ -12,7 +12,7 @@ use crate::cmd::Home;
 use crate::cmd::Run;
 use crate::config::{Clone, Config, Remote, User};
 use crate::db::{Database, Repo};
-use crate::util;
+use crate::util::{self, Shell};
 
 impl Run for Home {
     fn run(&self) -> Result<()> {
@@ -136,9 +136,17 @@ impl Home {
             style(query.as_ref()).yellow()
         ));
         let repo_names = provider.list(query.as_ref())?;
+        let mut keys = Vec::with_capacity(repo_names.len());
+        for repo_name in &repo_names {
+            let key = match repo_name.strip_prefix(query.as_ref()) {
+                Some(key) => key.trim_matches('/'),
+                None => &repo_name,
+            };
+            keys.push(key);
+        }
 
         let mut fzf = util::Fzf::build()?;
-        let idx = fzf.query(&repo_names)?;
+        let idx = fzf.query(&keys)?;
 
         let repo_name = &repo_names[idx];
         if let Some(idx) = db.get(&remote.name, repo_name) {
@@ -191,7 +199,7 @@ impl Home {
             Ok(_) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::NotFound => match &remote.clone {
                 Some(clone) => self.clone(repo, &clone, &path, &remote.user),
-                None => self.create_dir(&path),
+                None => self.create_dir(repo, remote, &path),
             },
             Err(err) => Err(err)
                 .with_context(|| format!("could not read repository directory {}", path.display())),
@@ -201,22 +209,19 @@ impl Home {
     fn clone(&self, repo: &Repo, clone: &Clone, path: &PathBuf, user: &Option<User>) -> Result<()> {
         let url = repo.clone_url(clone);
 
-        let path = match path.to_str() {
-            Some(path) => path,
-            None => bail!("could not parse path: {}", path.display()),
-        };
+        let path = util::path_to_str(path)?;
 
-        let mut git = util::Git::new();
+        let mut git = Shell::git();
         git.arg("clone").args([url.as_str(), path]).exec()?;
 
         if let Some(user) = user {
-            util::Git::new()
-                .with_path(path)
+            Shell::git()
+                .with_git_path(path)
                 .args(["config", "user.name"])
                 .arg(&user.name)
                 .exec()?;
-            util::Git::new()
-                .with_path(path)
+            Shell::git()
+                .with_git_path(path)
                 .args(["config", "user.email"])
                 .arg(&user.email)
                 .exec()?;
@@ -225,8 +230,32 @@ impl Home {
         Ok(())
     }
 
-    fn create_dir(&self, path: &PathBuf) -> Result<()> {
-        fs::create_dir_all(&path)
-            .with_context(|| format!("unable to create repository directory: {}", path.display()))
+    fn create_dir(&self, repo: &Repo, remote: &Remote, path: &PathBuf) -> Result<()> {
+        fs::create_dir_all(&path).with_context(|| {
+            format!("unable to create repository directory: {}", path.display())
+        })?;
+        let path_str = util::path_to_str(path)?;
+        Shell::git().with_git_path(path_str).arg("init").exec()?;
+        self.after_create(repo, remote, path)
+    }
+
+    fn after_create(&self, repo: &Repo, remote: &Remote, path: &PathBuf) -> Result<()> {
+        if let Some(script) = &remote.on_create {
+            let lines: Vec<&str> = script.split("\n").collect();
+            for line in lines {
+                if line.is_empty() {
+                    continue;
+                }
+                let mut bash = Shell::bash(line);
+
+                bash.env("REPO_NAME", &repo.name);
+                bash.env("REMOTE", &remote.name);
+
+                bash.with_path(path);
+
+                bash.exec()?;
+            }
+        }
+        Ok(())
     }
 }

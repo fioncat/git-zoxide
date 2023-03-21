@@ -1,0 +1,21 @@
+workspace: ~/dev
+
+remotes:
+  - name: github
+    user:
+      name: <your-user-name>
+      email: <your-email>
+    clone:
+      domain: github.com
+    api:
+      provider: github
+      token: ${GITHUB_TOKEN}
+
+  - name: rust-play
+    on_create: |
+      cargo init
+
+  - name: go-play
+    on_create: |
+      go mod init ${REPO_NAME}
+      echo "package main" > main.go

@@ -1,5 +1,6 @@
 mod attach;
 mod clean;
+mod config;
 mod detach;
 mod home;
 mod init;
@@ -19,6 +20,7 @@ pub enum Cmd {
     Detach(Detach),
     List(List),
     Init(Init),
+    Config(Config),
 }
 
 #[derive(Debug, Parser)]
@@ -90,6 +92,12 @@ pub struct Init {
     pub home_cmd: Option<String>,
 }
 
+#[derive(Debug, Parser)]
+pub struct Config {
+    #[clap(long, short)]
+    pub editor: Option<String>,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -104,6 +112,7 @@ impl Run for Cmd {
             Cmd::Detach(detach) => detach.run(),
             Cmd::List(list) => list.run(),
             Cmd::Init(init) => init.run(),
+            Cmd::Config(config) => config.run(),
         }
     }
 }
