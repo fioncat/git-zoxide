@@ -1,16 +1,9 @@
 name: release
 
-# on:
-#   push:
-#     tags:
-#       - '*'
 on:
   push:
-    branches:
-      - "main"
-  pull_request:
-    branches:
-      - "main"
+    tags:
+      - '*'
 
 env:
   CARGO_INCREMENTAL: 0
@@ -20,29 +13,28 @@ permissions:
 
 jobs:
   release:
-    # if: contains(github.ref, 'refs/tags/')
+    if: contains(github.ref, 'refs/tags/')
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
             deb: true
           - os: ubuntu-latest
-            target: arm-unknown-linux-musleabihf
+            target: aarch64-unknown-linux-gnu
+            deb: true
 
           - os: macos-11
             target: x86_64-apple-darwin
           - os: macos-11
             target: aarch64-apple-darwin
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@dc323e67f16fb5f7663d20ff7941f27f5809e9b6 # v2.6.0
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v3
 
       - name: Get version
         id: get_version
@@ -50,6 +42,10 @@ jobs:
         with:
           file: Cargo.toml
           field: package.version
+
+      - name: Install aarch64 gcc
+        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+        run: sudo apt-get install gcc-aarch64-linux-gnu
 
       - name: Install Rust
         uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
@@ -64,16 +60,12 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Install openssl
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: sudo apt-get install openssl
-
       - name: Build binary
         uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
         with:
           command: build
           args: --release --locked --target=${{ matrix.target }} --color=always --verbose
-          use-cross: false
+          use-cross: ${{ runner.os == 'Linux' }}
 
       - name: Install cargo-deb
         if: ${{ matrix.deb == true }}
@@ -91,11 +83,10 @@ jobs:
       - name: Package
         run: >
           tar -cv
-          CHANGELOG.md LICENSE README.md
-          man/
-          -C target/${{ matrix.target }}/release/git-zoxide
+          LICENSE README.md
+          -C target/${{ matrix.target }}/release/ git-zoxide
           | gzip --best
-          > 'git-zoxide-${{ matrix.target }}.tar.gz'
+          > 'git-zoxide_${{ matrix.target }}.tar.gz'
 
       - name: Upload artifact
         uses: actions/upload-artifact@82c141cc518b40d92cc801eee768e7aafc9c2fa2 # v2.3.1
@@ -104,16 +95,13 @@ jobs:
           path: |
             *.deb
             *.tar.gz
-            *.zip
 
       - name: Create release
-        if: ${{ github.ref == 'refs/heads/main' }}
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           draft: true
           files: |
             *.deb
             *.tar.gz
-            *.zip
           name: ${{ steps.get_version.outputs.value }}
           tag_name: ""
