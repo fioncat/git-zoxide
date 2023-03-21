@@ -36,7 +36,7 @@ impl Repo {
         }
     }
 
-    pub fn path<S>(&self, workspace: S) -> Result<PathBuf>
+    pub fn path<S, R>(&self, workspace: S) -> Result<PathBuf>
     where
         S: AsRef<str>,
     {
@@ -48,7 +48,7 @@ impl Repo {
         match buf {
             Ok(buf) => {
                 if self.path.is_empty() {
-                    Ok(buf.join(&self.name))
+                    Ok(buf.join(&self.remote).join(&self.name))
                 } else {
                     Ok(buf)
                 }
