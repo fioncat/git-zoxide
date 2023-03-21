@@ -87,7 +87,7 @@ jobs:
         run: >
           tar -cv
           LICENSE README.md
-          -C target/${{ matrix.target }}/release/git-zoxide
+          -C target/${{ matrix.target }}/release/ git-zoxide
           | gzip --best
           > 'git-zoxide_${{ matrix.target }}.tar.gz'
 
