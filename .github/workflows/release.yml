@@ -37,13 +37,13 @@ jobs:
 
       - name: Get version
         id: get_version
-        uses: SebRollen/toml-action@v1
+        uses: SebRollen/toml-action@v1.0.1
         with:
           file: Cargo.toml
           field: package.version
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rs/toolchain@v0.1
         with:
           toolchain: stable
           profile: minimal
