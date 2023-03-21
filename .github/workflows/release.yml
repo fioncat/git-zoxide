@@ -51,7 +51,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Setup cache
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
 
@@ -64,7 +64,7 @@ jobs:
 
       - name: Install cargo-deb
         if: ${{ matrix.deb == true }}
-        uses: actions-rs/install@v1
+        uses: actions-rs/install@v0.1
         with:
           crate: cargo-deb
 
@@ -94,7 +94,6 @@ jobs:
             *.zip
 
       - name: Create release
-        if: ${{ github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'chore(release)') }}
         uses: softprops/action-gh-release@v1
         with:
           draft: true
