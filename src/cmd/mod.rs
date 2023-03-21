@@ -11,7 +11,7 @@ use anyhow::Result;
 use clap::Parser;
 
 #[derive(Debug, Parser)]
-#[clap(about, author)]
+#[clap(about, author, version)]
 pub enum Cmd {
     Home(Home),
     Remove(Remove),
@@ -23,11 +23,14 @@ pub enum Cmd {
     Config(Config),
 }
 
+// Home print the path for a repository
 #[derive(Debug, Parser)]
+#[command(about = "Print the home path for a repository, recommanded to use `zz` instead")]
 pub struct Home {
     #[clap(num_args = 0..=2)]
     pub args: Vec<String>,
 
+    // Create the repo
     #[clap(long, short)]
     pub create: bool,
 
@@ -36,6 +39,7 @@ pub struct Home {
 }
 
 #[derive(Debug, Parser)]
+#[command(about = "Remove a repository")]
 pub struct Remove {
     pub remote: String,
     pub name: String,
@@ -45,12 +49,14 @@ pub struct Remove {
 }
 
 #[derive(Debug, Parser)]
+#[command(about = "Clean unused directory in workspace")]
 pub struct Clean {
     #[clap(long)]
     pub dry_run: bool,
 }
 
 #[derive(Debug, Parser)]
+#[command(about = "Attach current path to a repository")]
 pub struct Attach {
     #[clap(required = true)]
     pub remote: String,
@@ -69,12 +75,14 @@ pub struct Attach {
 }
 
 #[derive(Debug, Parser)]
+#[command(about = "Detach current path from a repository")]
 pub struct Detach {
     #[clap(long, short)]
     pub dir: Option<String>,
 }
 
 #[derive(Debug, Parser)]
+#[command(about = "List remotes or repositories")]
 pub struct List {
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
@@ -84,7 +92,9 @@ pub struct List {
 }
 
 #[derive(Debug, Parser)]
+#[command(about = "Print the init script, please add `source <(git-zoxide init)` to your profile")]
 pub struct Init {
+    // cmd name, default is `gz`
     #[clap(long)]
     pub cmd: Option<String>,
 
@@ -93,6 +103,7 @@ pub struct Init {
 }
 
 #[derive(Debug, Parser)]
+#[command(about = "Edit config file")]
 pub struct Config {
     #[clap(long, short)]
     pub editor: Option<String>,

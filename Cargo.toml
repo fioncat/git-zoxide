@@ -2,6 +2,17 @@
 name = "git-zoxide"
 version = "0.1.0"
 edition = "2021"
+authors = ["fioncat <lazycat7706@gmail.com>"]
+categories = ["command-line-utilities", "filesystem"]
+description = "Yet anthoer zoxide for git repositories"
+homepage = "https://github.com/fioncat/git-zoxide"
+keywords = ["cli"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/fioncat/git-zoxide"
+
+[badges]
+maintenance = { status = "actively-developed" }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,3 +33,25 @@ serde = { version = "1.0.116", features = ["derive"] }
 serde_yaml = "0.9.19"
 shellexpand = "3.0.0"
 tokio = "1.26.0"
+
+[package.metadata.deb]
+assets = [
+    [
+        "target/release/git-zoxide",
+        "usr/bin/",
+        "755",
+    ],
+    [
+        "README.md",
+        "usr/share/doc/git-zoxide/",
+        "644",
+    ],
+    [
+        "LICENSE",
+        "usr/share/doc/git-zoxide/",
+        "644",
+    ],
+]
+extended-description = "git-zoxide is yet anthoer zoxide for git repositories"
+priority = "optional"
+section = "utils"
