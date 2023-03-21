@@ -2,17 +2,34 @@ name: release
 
 on:
   push:
-    tags:
-      - '*'
+    branches:
+      - dev
 
+env:
+  CARGO_INCREMENTAL: 0
 permissions:
   contents: write
 
 jobs:
   release:
-    if: contains(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            deb: true
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            deb: true
+
+          - os: macos-11
+            target: x86_64-apple-darwin
+          - os: macos-11
+            target: aarch64-apple-darwin
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -24,8 +41,26 @@ jobs:
           file: Cargo.toml
           field: package.version
 
-      - name: Create release
-        uses: softprops/action-gh-release@v1
+      - name: Install aarch64 gcc
+        if: runner.target == 'aarch64-unknown-linux-gnu'
+        run: sudo apt-get install gcc-aarch64-linux-gnu
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
         with:
-          draft: true
-          name: ${{ steps.get_version.outputs.value }}
+          toolchain: stable
+          profile: minimal
+          override: true
+          target: ${{ matrix.target }}
+
+      - name: Setup cache
+        uses: Swatinem/rust-cache@81d053bdb0871dcd3f10763c8cc60d0adc41762b # v1
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build binary
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+        with:
+          command: build
+          args: --release --locked --target=${{ matrix.target }} --color=always --verbose
+          use-cross: ${{ runner.os == 'Linux' }}
