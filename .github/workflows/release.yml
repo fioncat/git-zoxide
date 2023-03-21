@@ -65,7 +65,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Install openssl
-        if: ${{ matrix.os == "ubuntu-latest" }}
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: apt-get install openssl
 
       - name: Build binary
