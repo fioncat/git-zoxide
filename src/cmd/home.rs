@@ -140,7 +140,7 @@ impl Home {
         for repo_name in &repo_names {
             let key = match repo_name.strip_prefix(query.as_ref()) {
                 Some(key) => key.trim_matches('/'),
-                None => continue,
+                None => &repo_name,
             };
             keys.push(key);
         }
@@ -211,16 +211,16 @@ impl Home {
 
         let path = util::path_to_str(path)?;
 
-        let mut git = Shell::git()?;
+        let mut git = Shell::git();
         git.arg("clone").args([url.as_str(), path]).exec()?;
 
         if let Some(user) = user {
-            Shell::git()?
+            Shell::git()
                 .with_git_path(path)
                 .args(["config", "user.name"])
                 .arg(&user.name)
                 .exec()?;
-            Shell::git()?
+            Shell::git()
                 .with_git_path(path)
                 .args(["config", "user.email"])
                 .arg(&user.email)
@@ -235,7 +235,7 @@ impl Home {
             format!("unable to create repository directory: {}", path.display())
         })?;
         let path_str = util::path_to_str(path)?;
-        Shell::git()?.with_git_path(path_str).arg("init").exec()?;
+        Shell::git().with_git_path(path_str).arg("init").exec()?;
         self.after_create(repo, remote, path)
     }
 
@@ -246,7 +246,7 @@ impl Home {
                 if line.is_empty() {
                     continue;
                 }
-                let mut bash = Shell::bash(line)?;
+                let mut bash = Shell::bash(line);
 
                 bash.env("REPO_NAME", &repo.name);
                 bash.env("REMOTE", &remote.name);

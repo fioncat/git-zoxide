@@ -179,10 +179,6 @@ pub fn osstr_to_str<'a>(s: &'a OsStr) -> Result<&'a str> {
     }
 }
 
-pub fn str_to_osstr(s: &str) -> Result<OsString> {
-    OsString::from_str(s).with_context(|| format!("could not parse string {}", s))
-}
-
 pub fn path_to_str<'a>(path: &'a PathBuf) -> Result<&'a str> {
     match path.to_str() {
         Some(path) => Ok(path),
@@ -256,23 +252,81 @@ pub struct Shell {
 }
 
 impl Shell {
-    pub fn new(name: impl AsRef<str>) -> Result<Shell> {
-        let name = str_to_osstr(name.as_ref())?;
-        let mut cmd = Command::new(&name);
+    pub fn new(name: impl AsRef<OsStr>) -> Shell {
+        let mut cmd = Command::new(name.as_ref());
         cmd.stdout(Stdio::piped());
-        Ok(Shell { cmd, program: name })
+        cmd.stderr(Stdio::inherit());
+        cmd.stdin(Stdio::inherit());
+        Shell {
+            cmd,
+            program: name.as_ref().to_os_string(),
+        }
     }
 
-    pub fn git() -> Result<Shell> {
+    pub fn git() -> Shell {
         Self::new("git")
     }
 
-    pub fn bash(script: impl AsRef<str>) -> Result<Shell> {
-        let mut shell = Self::new("bash")?;
+    pub fn bash(script: impl AsRef<OsStr>) -> Shell {
+        let mut shell = Self::new("bash");
         shell.arg("-c");
-        let sciprt = str_to_osstr(script.as_ref())?;
-        shell.arg(&sciprt);
-        Ok(shell)
+        shell.arg(script.as_ref());
+        shell
+    }
+
+    pub fn cmd_exists(name: impl AsRef<OsStr>) -> bool {
+        let str = match name.as_ref().to_str() {
+            Some(s) => s,
+            None => return false,
+        };
+        let mut cmd = Command::new("bash");
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+        cmd.stdin(Stdio::inherit());
+
+        cmd.arg("-c");
+        cmd.arg(format!("command -v {}", str));
+
+        match cmd.output() {
+            Ok(_) => true,
+            Err(_) => false,
+        }
+    }
+
+    pub fn select_cmd<S, I>(names: I) -> Option<S>
+    where
+        S: AsRef<OsStr>,
+        I: IntoIterator<Item = S>,
+    {
+        for name in names {
+            if Self::cmd_exists(name.as_ref()) {
+                return Some(name);
+            }
+        }
+        None
+    }
+
+    pub fn edit_file(editor: &Option<String>, path: &PathBuf) -> Result<()> {
+        let editor = match editor {
+            Some(e) => e.as_str(),
+            None => match Self::select_cmd(["nvim", "vim", "vi"]) {
+                Some(e) => e,
+                None => {
+                    bail!("could not find valid editor in your machine, please config it manually")
+                }
+            },
+        };
+
+        let mut cmd = Command::new(editor);
+        cmd.stdout(Stdio::inherit());
+        cmd.stderr(Stdio::inherit());
+        cmd.stdin(Stdio::inherit());
+        cmd.arg(path.display().to_string());
+
+        match cmd.output() {
+            Ok(_) => Ok(()),
+            Err(_) => bail!(SilentExit { code: 101 }),
+        }
     }
 
     pub fn with_path(&mut self, path: &PathBuf) -> &mut Self {

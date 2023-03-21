@@ -1,4 +1,4 @@
-worspace: ~/dev
+workspace: ~/dev
 
 remotes:
   - name: github
@@ -17,5 +17,5 @@ remotes:
 
   - name: go-play
     on_create: |
-      go mod init ${NAME}
+      go mod init ${REPO_NAME}
       echo "package main" > main.go
