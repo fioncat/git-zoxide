@@ -1,9 +1,16 @@
 name: release
 
+# on:
+#   push:
+#     tags:
+#       - '*'
 on:
   push:
-    tags:
-      - '*'
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
 
 env:
   CARGO_INCREMENTAL: 0
@@ -13,7 +20,7 @@ permissions:
 
 jobs:
   release:
-    if: contains(github.ref, 'refs/tags/')
+    # if: contains(github.ref, 'refs/tags/')
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -57,12 +64,29 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
+      - name: Install openssl
+        if: ${{ matrix.os == ubuntu-latest }}
+        run: apt-get install openssl
+
       - name: Build binary
         uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
         with:
           command: build
           args: --release --locked --target=${{ matrix.target }} --color=always --verbose
           use-cross: false
+
+      - name: Install cargo-deb
+        if: ${{ matrix.deb == true }}
+        uses: actions-rs/install@9da1d2adcfe5e7c16992e8242ca33a56b6d9b101 # v0.1.2
+        with:
+          crate: cargo-deb
+
+      - name: Build deb
+        if: ${{ matrix.deb == true }}
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # v1.0.3
+        with:
+          command: deb
+          args: --no-build --no-strip --output=. --target=${{ matrix.target }}
 
       - name: Package
         run: >
