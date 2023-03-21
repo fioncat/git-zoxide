@@ -16,6 +16,7 @@ fastrand = "1.9.0"
 gitlab = "0.1509.0"
 nix = "0.26.2"
 octocrab = "0.18.1"
+openssl = { version = "0.10.47", features = ["vendored"] }
 secrecy = "0.8.0"
 serde = { version = "1.0.116", features = ["derive"] }
 serde_yaml = "0.9.19"
