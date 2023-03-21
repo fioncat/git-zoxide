@@ -36,7 +36,7 @@ impl Repo {
         }
     }
 
-    pub fn path<S, R>(&self, workspace: S) -> Result<PathBuf>
+    pub fn path<S>(&self, workspace: S) -> Result<PathBuf>
     where
         S: AsRef<str>,
     {
