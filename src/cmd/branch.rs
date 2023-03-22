@@ -101,10 +101,10 @@ impl Branch {
         for task in &tasks {
             match task {
                 SyncBranchTask::Sync(op, branch) => {
-                    print!("{} {} {} ", style("+").green(), op, style(branch).magenta())
+                    println!("{} {} {} ", style("+").green(), op, style(branch).magenta())
                 }
                 SyncBranchTask::Delete(branch) => {
-                    print!("{} delete {} ", style("-").red(), style(branch).magenta())
+                    println!("{} delete {} ", style("-").red(), style(branch).magenta())
                 }
             }
         }
