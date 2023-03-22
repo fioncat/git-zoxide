@@ -376,15 +376,7 @@ impl Shell {
         self
     }
 
-    pub fn exec(&mut self) -> Result<()> {
-        let output = self.output()?;
-        if !output.is_empty() {
-            _ = write!(io::stderr(), "{}", output);
-        }
-        Ok(())
-    }
-
-    pub fn output(&mut self) -> Result<String> {
+    pub fn exec(&mut self) -> Result<String> {
         let program = osstr_to_str(&self.program)?;
         self.print_cmd(program)?;
         let mut child = match self.cmd.spawn() {
@@ -477,9 +469,7 @@ impl GitBranch {
         git.args(["branch", "-vv"]);
         git.mute();
 
-        let output = git
-            .output()
-            .context("unable to execute git branch command")?;
+        let output = git.exec().context("unable to execute git branch command")?;
         let lines: Vec<&str> = output.split("\n").collect();
         let mut branches: Vec<GitBranch> = Vec::with_capacity(lines.len());
         for line in lines {
@@ -494,7 +484,7 @@ impl GitBranch {
         print_operation("try to get default branch");
         let mut git = Shell::git();
         git.args(["symbolic-ref", Self::HEAD_REF]);
-        if let Ok(out) = git.output() {
+        if let Ok(out) = git.exec() {
             if out.is_empty() {
                 bail!("default branch is empty")
             }
@@ -507,7 +497,7 @@ impl GitBranch {
         // use "git show <remote>" instead to get default branch.
         let mut git = Shell::git();
         git.args(["remote", "show", "origin"]);
-        let output = git.output()?;
+        let output = git.exec()?;
         let lines: Vec<&str> = output.split("\n").collect();
         for line in lines {
             if let Some(branch) = line.trim().strip_prefix(Self::HEAD_BRANCH_PREFIX) {
@@ -525,7 +515,7 @@ impl GitBranch {
     pub fn ensure_no_uncommitted() -> Result<()> {
         let mut git = Shell::git();
         git.args(["status", "-s"]);
-        let output = git.output()?;
+        let output = git.exec()?;
         if !output.is_empty() {
             let lines: Vec<&str> = output.split("\n").collect();
             let (word, call) = if lines.len() == 1 {

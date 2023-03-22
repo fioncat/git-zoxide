@@ -118,24 +118,24 @@ impl Branch {
                 SyncBranchTask::Sync(op, branch) => {
                     if &current != branch {
                         // checkout to this branch to perform push/pull
-                        Shell::git().args(["checkout", branch]).output()?;
+                        Shell::git().args(["checkout", branch]).exec()?;
                         current = branch;
                     }
-                    Shell::git().arg(op).output()?;
+                    Shell::git().arg(op).exec()?;
                 }
                 SyncBranchTask::Delete(branch) => {
                     if &current == branch {
                         // we cannot delete branch when we are inside it, checkout
                         // to default branch first.
-                        Shell::git().args(["checkout", default.as_str()]).output()?;
+                        Shell::git().args(["checkout", default.as_str()]).exec()?;
                         current = branch;
                     }
-                    Shell::git().args(["branch", "-D", branch]).output()?;
+                    Shell::git().args(["branch", "-D", branch]).exec()?;
                 }
             }
         }
         if current != back {
-            Shell::git().args(["checkout", back]).output()?;
+            Shell::git().args(["checkout", back]).exec()?;
         }
 
         Ok(())
@@ -144,6 +144,7 @@ impl Branch {
     fn fetch(&self) -> Result<()> {
         let mut git = Shell::git();
         git.args(["fetch", "--prune"]);
-        git.exec()
+        git.exec()?;
+        Ok(())
     }
 }
