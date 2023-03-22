@@ -1,3 +1,4 @@
+use anyhow::bail;
 use anyhow::Context;
 use anyhow::Result;
 use console::style;
@@ -19,6 +20,23 @@ impl Run for Branch {
         if self.args.is_empty() {
             self.show(&branches);
             return Ok(());
+        }
+        if self.delete {
+            return self.delete(&branches);
+        }
+        if self.args.is_empty() {
+            bail!("require branch name")
+        }
+        let name = &self.args[0];
+        if self.create {
+            Shell::git().args(["checkout", "-b", name]).exec()?;
+        } else {
+            Shell::git().args(["checkout", name]).exec()?;
+        }
+        if self.push {
+            Shell::git()
+                .args(["push", "--set-upstream", "origin", name])
+                .exec()?;
         }
 
         Ok(())
@@ -145,5 +163,39 @@ impl Branch {
         git.args(["fetch", "--prune"]);
         git.exec()?;
         Ok(())
+    }
+
+    fn delete(&self, branches: &Vec<GitBranch>) -> Result<()> {
+        let branch = match self.args.len() {
+            0 => Self::must_get_current_branch(branches)?,
+            _ => match branches.iter().find(|b| b.name.eq(&self.args[0])) {
+                Some(b) => b,
+                None => bail!("could not find branch {}", style(&self.args[0]).yellow()),
+            },
+        };
+
+        if branch.current {
+            GitBranch::ensure_no_uncommitted()?;
+            let default = GitBranch::default()?;
+            if branch.name.eq(&default) {
+                bail!("could not delete default branch")
+            }
+            Shell::git().args(["checkout", default.as_str()]).exec()?;
+        }
+
+        Shell::git().args(["branch", "-D", &branch.name]).exec()?;
+        if self.push {
+            Shell::git()
+                .args(["push", "origin", "--delete", &branch.name])
+                .exec()?;
+        }
+        Ok(())
+    }
+
+    fn must_get_current_branch(branches: &Vec<GitBranch>) -> Result<&GitBranch> {
+        match branches.iter().find(|b| b.current) {
+            Some(b) => Ok(b),
+            None => bail!("could not find current branch"),
+        }
     }
 }

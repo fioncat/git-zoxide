@@ -6,6 +6,7 @@ _GIT_ZOXIDE_CMDS=( \
 	"list" \
 	"remove" \
 	"config" \
+	"branch" \
 )
 
 _git-zoxide() {
@@ -36,6 +37,9 @@ _git-zoxide() {
 			_git-zoxide_cmp_remote
 			_git-zoxide_cmp_repo
 			;;
+		branch)
+			_git-zoxide_cmp_branch
+			;;
 	esac
 	if (( ${#words[@]} > 4 )); then
 		_arguments '*:dir:_dirs'
@@ -46,6 +50,14 @@ _git-zoxide_cmp_remote() {
 	if [ "${#words[@]}" -eq "3" ]; then
 		local remotes=($($cmd list))
 		_describe 'command' remotes
+		return
+	fi
+}
+
+_git-zoxide_cmp_branch() {
+	if [ "${#words[@]}" -eq "3" ]; then
+		local branches=($($cmd branch 2>/dev/null))
+		_describe 'command' branches
 		return
 	fi
 }

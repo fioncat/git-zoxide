@@ -337,11 +337,6 @@ impl Shell {
         self
     }
 
-    pub fn mute(&mut self) -> &mut Self {
-        self.mute = true;
-        self
-    }
-
     pub fn with_git_path<S>(&mut self, path: S) -> &mut Self
     where
         S: AsRef<str>,
@@ -467,7 +462,6 @@ impl GitBranch {
         let re = Regex::new(Self::BRANCH_REGEX).expect("parse git branch regex");
         let mut git = Shell::git();
         git.args(["branch", "-vv"]);
-        git.mute();
 
         let output = git.exec().context("unable to execute git branch command")?;
         let lines: Vec<&str> = output.split("\n").collect();
