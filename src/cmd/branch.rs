@@ -13,6 +13,10 @@ use crate::util::Shell;
 
 impl Run for Branch {
     fn run(&self) -> Result<()> {
+        if self.sync {
+            GitBranch::ensure_no_uncommitted()?;
+            self.fetch()?;
+        }
         let branches = GitBranch::list().context("unable to list branch")?;
         if self.sync {
             return self.sync(&branches);
@@ -75,8 +79,6 @@ impl Branch {
     }
 
     fn sync(&self, branches: &Vec<GitBranch>) -> Result<()> {
-        GitBranch::ensure_no_uncommitted()?;
-        self.fetch()?;
         let default = GitBranch::default().context("unable to get default branch")?;
 
         let mut back = &default;
@@ -130,10 +132,10 @@ impl Branch {
         util::confirm("do you want to process the synchronization")?;
 
         println!();
-        for task in &tasks {
+        for task in tasks {
             match task {
                 SyncBranchTask::Sync(op, branch) => {
-                    if &current != branch {
+                    if current != branch {
                         // checkout to this branch to perform push/pull
                         Shell::git().args(["checkout", branch]).exec()?;
                         current = branch;
@@ -141,7 +143,7 @@ impl Branch {
                     Shell::git().arg(op).exec()?;
                 }
                 SyncBranchTask::Delete(branch) => {
-                    if &current == branch {
+                    if current == branch {
                         // we cannot delete branch when we are inside it, checkout
                         // to default branch first.
                         Shell::git().args(["checkout", default.as_str()]).exec()?;
