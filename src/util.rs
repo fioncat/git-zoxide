@@ -14,8 +14,9 @@ use anyhow::{bail, Context, Result};
 use crate::db::Epoch;
 use crate::errors::SilentExit;
 
-use console::{style, Term};
+use console::{style, StyledObject, Term};
 use dialoguer::{theme::ColorfulTheme, Confirm};
+use regex::Regex;
 
 pub const SECOND: Epoch = 1;
 pub const MINUTE: Epoch = 60 * SECOND;
@@ -249,6 +250,7 @@ impl Fzf {
 pub struct Shell {
     cmd: Command,
     program: OsString,
+    mute: bool,
 }
 
 impl Shell {
@@ -260,6 +262,7 @@ impl Shell {
         Shell {
             cmd,
             program: name.as_ref().to_os_string(),
+            mute: false,
         }
     }
 
@@ -368,15 +371,7 @@ impl Shell {
         self
     }
 
-    pub fn exec(&mut self) -> Result<()> {
-        let output = self.output()?;
-        if !output.is_empty() {
-            _ = write!(io::stderr(), "{}", output);
-        }
-        Ok(())
-    }
-
-    pub fn output(&mut self) -> Result<String> {
+    pub fn exec(&mut self) -> Result<String> {
         let program = osstr_to_str(&self.program)?;
         self.print_cmd(program)?;
         let mut child = match self.cmd.spawn() {
@@ -397,12 +392,15 @@ impl Shell {
             .wait()
             .with_context(|| format!("failed to wait for {}", program))?;
         match status.code() {
-            Some(0) => Ok(output),
+            Some(0) => Ok(output.trim().to_string()),
             _ => bail!(SilentExit { code: 101 }),
         }
     }
 
     fn print_cmd(&self, program: &str) -> Result<()> {
+        if self.mute {
+            return Ok(());
+        }
         let args = self.cmd.get_args();
         let args: Vec<&OsStr> = args.collect();
         let mut strs: Vec<&str> = Vec::with_capacity(args.len() + 1);
@@ -422,6 +420,169 @@ impl Shell {
             style(cmd_str).bold()
         );
         Ok(())
+    }
+}
+
+pub enum BranchStatus {
+    Sync,
+    Gone,
+    Ahead,
+    Behind,
+    Conflict,
+    Detached,
+}
+
+impl BranchStatus {
+    pub fn display(&self) -> StyledObject<&'static str> {
+        match self {
+            Self::Sync => style("sync").green(),
+            Self::Gone => style("gone").red(),
+            Self::Ahead => style("ahead").yellow(),
+            Self::Behind => style("behind").yellow(),
+            Self::Conflict => style("conflict").yellow().bold(),
+            Self::Detached => style("detached").red(),
+        }
+    }
+}
+
+pub struct GitBranch {
+    pub name: String,
+    pub status: BranchStatus,
+
+    pub current: bool,
+}
+
+impl GitBranch {
+    const BRANCH_REGEX: &str = r"^(\*)*[ ]*([^ ]*)[ ]*([^ ]*)[ ]*(\[[^\]]*\])*[ ]*(.*)$";
+    const REMOTE_REF: &str = "refs/remotes/origin/";
+    const HEAD_REF: &str = "refs/remotes/origin/HEAD";
+    const HEAD_BRANCH_PREFIX: &str = "HEAD branch:";
+
+    pub fn list() -> Result<Vec<GitBranch>> {
+        let re = Regex::new(Self::BRANCH_REGEX).expect("parse git branch regex");
+        let mut git = Shell::git();
+        git.args(["branch", "-vv"]);
+
+        let output = git.exec().context("unable to execute git branch command")?;
+        let lines: Vec<&str> = output.split("\n").collect();
+        let mut branches: Vec<GitBranch> = Vec::with_capacity(lines.len());
+        for line in lines {
+            let branch = Self::parse(&re, line)?;
+            branches.push(branch);
+        }
+
+        Ok(branches)
+    }
+
+    pub fn default() -> Result<String> {
+        print_operation("try to get default branch");
+        let mut git = Shell::git();
+        git.args(["symbolic-ref", Self::HEAD_REF]);
+        if let Ok(out) = git.exec() {
+            if out.is_empty() {
+                bail!("default branch is empty")
+            }
+            return match out.strip_prefix(Self::REMOTE_REF) {
+                Some(s) => Ok(s.to_string()),
+                None => bail!("invalid ref output by git: {}", style(out).yellow()),
+            };
+        }
+        // If failed, user might not switch to this branch yet, let's
+        // use "git show <remote>" instead to get default branch.
+        let mut git = Shell::git();
+        git.args(["remote", "show", "origin"]);
+        let output = git.exec()?;
+        let lines: Vec<&str> = output.split("\n").collect();
+        for line in lines {
+            if let Some(branch) = line.trim().strip_prefix(Self::HEAD_BRANCH_PREFIX) {
+                let branch = branch.trim();
+                if branch.is_empty() {
+                    bail!("default branch returned by git remote show is empty")
+                }
+                return Ok(branch.to_string());
+            }
+        }
+
+        bail!("no default branch returned by git remote show, please check your git command")
+    }
+
+    pub fn ensure_no_uncommitted() -> Result<()> {
+        let mut git = Shell::git();
+        git.args(["status", "-s"]);
+        let output = git.exec()?;
+        if !output.is_empty() {
+            let lines: Vec<&str> = output.split("\n").collect();
+            let (word, call) = if lines.len() == 1 {
+                ("change", "it")
+            } else {
+                ("changes", "them")
+            };
+            bail!(
+                "you have {} uncommitted {}, please handle {} first",
+                lines.len(),
+                word,
+                call
+            )
+        }
+        Ok(())
+    }
+
+    fn parse(re: &Regex, line: impl AsRef<str>) -> Result<GitBranch> {
+        let parse_err = format!(
+            "invalid branch description {}, please check your git command",
+            style(line.as_ref()).yellow()
+        );
+        let mut iter = re.captures_iter(line.as_ref());
+        let caps = match iter.next() {
+            Some(caps) => caps,
+            None => bail!(parse_err),
+        };
+        // We have 6 captures:
+        //   0 -> line itself
+        //   1 -> current branch
+        //   2 -> branch name
+        //   3 -> commit id
+        //   4 -> remote description
+        //   5 -> commit message
+        if caps.len() != 6 {
+            bail!(parse_err)
+        }
+        let mut current = false;
+        if let Some(_) = caps.get(1) {
+            current = true;
+        }
+
+        let name = match caps.get(2) {
+            Some(name) => name.as_str().trim(),
+            None => bail!("{}: missing name", parse_err),
+        };
+
+        let status = match caps.get(4) {
+            Some(remote_desc) => {
+                let remote_desc = remote_desc.as_str();
+                let behind = remote_desc.contains("behind");
+                let ahead = remote_desc.contains("ahead");
+
+                if remote_desc.contains("gone") {
+                    BranchStatus::Gone
+                } else if ahead && behind {
+                    BranchStatus::Conflict
+                } else if ahead {
+                    BranchStatus::Ahead
+                } else if behind {
+                    BranchStatus::Behind
+                } else {
+                    BranchStatus::Sync
+                }
+            }
+            None => BranchStatus::Detached,
+        };
+
+        Ok(GitBranch {
+            name: name.to_string(),
+            status,
+            current,
+        })
     }
 }
 

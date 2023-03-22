@@ -1,4 +1,5 @@
 mod attach;
+mod branch;
 mod clean;
 mod config;
 mod detach;
@@ -21,6 +22,7 @@ pub enum Cmd {
     List(List),
     Init(Init),
     Config(Config),
+    Branch(Branch),
 }
 
 // Home print the path for a repository
@@ -109,6 +111,28 @@ pub struct Config {
     pub editor: Option<String>,
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Git branch operations")]
+pub struct Branch {
+    #[clap(num_args = 0..=1)]
+    pub args: Vec<String>,
+
+    #[clap(long, short)]
+    pub all: bool,
+
+    #[clap(long, short)]
+    pub sync: bool,
+
+    #[clap(long, short)]
+    pub create: bool,
+
+    #[clap(long, short)]
+    pub delete: bool,
+
+    #[clap(long, short)]
+    pub push: bool,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -124,6 +148,7 @@ impl Run for Cmd {
             Cmd::List(list) => list.run(),
             Cmd::Init(init) => init.run(),
             Cmd::Config(config) => config.run(),
+            Cmd::Branch(branch) => branch.run(),
         }
     }
 }
