@@ -109,7 +109,6 @@ impl Branch {
             }
         }
         println!();
-        println!();
         util::confirm("do you want to process the synchronization")?;
 
         println!();
