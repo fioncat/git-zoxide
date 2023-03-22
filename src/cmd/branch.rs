@@ -146,8 +146,9 @@ impl Branch {
                     if current == branch {
                         // we cannot delete branch when we are inside it, checkout
                         // to default branch first.
-                        Shell::git().args(["checkout", default.as_str()]).exec()?;
-                        current = branch;
+                        let default = default.as_str();
+                        Shell::git().args(["checkout", default]).exec()?;
+                        current = default;
                     }
                     Shell::git().args(["branch", "-D", branch]).exec()?;
                 }
