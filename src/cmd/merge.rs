@@ -95,6 +95,8 @@ impl Merge {
     }
 
     fn create(&self, opts: &mut MergeOption, provider: &Box<dyn Provider>) -> Result<String> {
+        println!();
+        util::confirm(format!("do you want to create merge {}", opts.display()))?;
         (opts.title, opts.body) = self.input()?;
 
         println!();
@@ -104,6 +106,7 @@ impl Merge {
         println!();
 
         util::confirm("continue")?;
+        println!();
 
         util::print_operation(format!(
             "provider: create merge request {}",
