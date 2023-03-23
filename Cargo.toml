@@ -27,6 +27,7 @@ fastrand = "1.9.0"
 gitlab = "0.1509.0"
 nix = "0.26.2"
 octocrab = "0.18.1"
+open = "4.0.1"
 openssl = { version = "0.10.47", features = ["vendored"] }
 pad = "0.1.6"
 regex = "1.7.2"

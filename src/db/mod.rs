@@ -48,6 +48,19 @@ impl Database {
         Ok(())
     }
 
+    pub fn current(&self, workspace: impl AsRef<str>) -> Result<&Repo> {
+        let current_dir = util::current_dir()?;
+
+        for repo in &self.repos {
+            let path = repo.path(workspace.as_ref())?;
+            if current_dir.eq(&path) {
+                return Ok(repo);
+            }
+        }
+
+        bail!("current path does not bound to any repository")
+    }
+
     pub fn get<R, N>(&self, remote: R, name: N) -> Option<usize>
     where
         R: AsRef<str>,

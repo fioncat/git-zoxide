@@ -158,6 +158,42 @@ pub fn confirm(msg: impl AsRef<str> + Into<String>) -> Result<()> {
     }
 }
 
+const EDIT_EMPTY: &str = "edit content is empty";
+
+pub fn edit<S>(msg: S, ext: S, required: bool) -> Result<String>
+where
+    S: AsRef<str>,
+{
+    let mut editor = dialoguer::Editor::new();
+    if !ext.as_ref().is_empty() {
+        editor.extension(ext.as_ref());
+    }
+    let text = editor.edit(msg.as_ref()).context("unable to edit text")?;
+    match text {
+        Some(s) => {
+            if required && s.is_empty() {
+                bail!(EDIT_EMPTY)
+            }
+            Ok(s)
+        }
+        None => {
+            if required {
+                bail!(EDIT_EMPTY)
+            }
+            Ok(String::new())
+        }
+    }
+}
+
+pub fn open_url(url: impl AsRef<str>) -> Result<()> {
+    open::that(url.as_ref()).with_context(|| {
+        format!(
+            "unable to open url {} in default browser",
+            style(url.as_ref()).yellow()
+        )
+    })
+}
+
 pub fn current_dir() -> Result<PathBuf> {
     env::current_dir().context("could not get current dir")
 }
@@ -504,6 +540,10 @@ impl GitBranch {
         }
 
         bail!("no default branch returned by git remote show, please check your git command")
+    }
+
+    pub fn current() -> Result<String> {
+        Shell::git().args(["branch", "--show-current"]).exec()
     }
 
     pub fn ensure_no_uncommitted() -> Result<()> {

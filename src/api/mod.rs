@@ -6,8 +6,50 @@ use console::style;
 
 use crate::config::{self, Remote};
 
+pub struct MergeOption {
+    pub repo: String,
+    pub upstream: Option<String>,
+
+    pub title: String,
+    pub body: String,
+
+    pub source: String,
+    pub target: String,
+}
+
+impl MergeOption {
+    pub fn display(&self) -> String {
+        match &self.upstream {
+            Some(upstream) => format!(
+                "{}:{} => {}:{}",
+                style(&self.repo).yellow(),
+                style(&self.source).magenta(),
+                style(upstream).yellow(),
+                style(&self.target).magenta()
+            ),
+            None => format!(
+                "{} => {}",
+                style(&self.source).magenta(),
+                style(&self.target).magenta()
+            ),
+        }
+    }
+
+    pub fn body_display(&self) -> String {
+        let lines = self.body.split("\n").count();
+        let word = if lines <= 1 { "line" } else { "lines" };
+        format!("{} {}", lines, word)
+    }
+}
+
 pub trait Provider {
     fn list(&self, group: &str) -> Result<Vec<String>>;
+
+    fn get_default_branch(&self, repo: &str) -> Result<String>;
+
+    fn get_upstream(&self, repo: &str) -> Result<String>;
+    fn get_merge(&self, opts: &MergeOption) -> Result<Option<String>>;
+    fn create_merge(&self, opts: &MergeOption) -> Result<String>;
 }
 
 pub fn create_provider(remote: &Remote) -> Result<Box<dyn Provider>> {

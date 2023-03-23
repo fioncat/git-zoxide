@@ -15,7 +15,7 @@ impl Run for Config {
         match fs::read(&path) {
             Ok(_) => util::Shell::edit_file(&self.editor, &path),
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
-                let config_bytes = include_bytes!("../../config.yaml");
+                let config_bytes = include_bytes!("../../files/config.yaml");
                 util::write(&path, config_bytes)?;
                 util::Shell::edit_file(&self.editor, &path)
             }
