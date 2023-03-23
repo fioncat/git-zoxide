@@ -11,3 +11,6 @@ impl Display for SilentExit {
         Ok(())
     }
 }
+
+pub const REPO_NO_UPSTREAM: &str =
+    "this repo is not forked from another repo, so it has no upstream";

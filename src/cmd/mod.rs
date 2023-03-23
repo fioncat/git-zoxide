@@ -6,6 +6,7 @@ mod detach;
 mod home;
 mod init;
 mod list;
+mod merge;
 mod remove;
 
 use anyhow::Result;
@@ -23,6 +24,7 @@ pub enum Cmd {
     Init(Init),
     Config(Config),
     Branch(Branch),
+    Merge(Merge),
 }
 
 // Home print the path for a repository
@@ -133,6 +135,19 @@ pub struct Branch {
     pub push: bool,
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Merge request operations")]
+pub struct Merge {
+    #[clap(long, short)]
+    pub upstream: bool,
+
+    #[clap(long, short)]
+    pub source: Option<String>,
+
+    #[clap(long, short)]
+    pub target: Option<String>,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -149,6 +164,7 @@ impl Run for Cmd {
             Cmd::Init(init) => init.run(),
             Cmd::Config(config) => config.run(),
             Cmd::Branch(branch) => branch.run(),
+            Cmd::Merge(merge) => merge.run(),
         }
     }
 }

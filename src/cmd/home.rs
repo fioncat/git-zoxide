@@ -132,7 +132,7 @@ impl Home {
         let provider = api::create_provider(remote)?;
 
         util::print_operation(format!(
-            "call provider api to list repo for {}",
+            "provider: list repo for {}",
             style(query.as_ref()).yellow()
         ));
         let repo_names = provider.list(query.as_ref())?;
