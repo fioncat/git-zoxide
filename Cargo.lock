@@ -557,6 +557,7 @@ dependencies = [
  "dirs",
  "fastrand",
  "gitlab",
+ "lazy_static",
  "nix",
  "octocrab",
  "open",
