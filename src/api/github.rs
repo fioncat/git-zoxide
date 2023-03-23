@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio::runtime::Runtime;
 
 use crate::{
-    api::{MergeOption, Provider},
+    api::{self, MergeOption, Provider},
     errors, util,
 };
 
@@ -139,6 +139,15 @@ impl Provider for Github {
             Some(url) => Ok(url.to_string()),
             None => bail!("github didnot return html_url for pr"),
         }
+    }
+
+    fn get_repo_url(
+        &self,
+        name: &str,
+        branch: Option<String>,
+        _remote: &crate::config::Remote,
+    ) -> Result<String> {
+        api::get_repo_url("github.com", name, branch)
     }
 }
 

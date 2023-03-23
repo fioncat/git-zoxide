@@ -6,6 +6,8 @@ _GIT_ZOXIDE_CMDS=( \
 	"list" \
 	"remove" \
 	"config" \
+	"open" \
+	"merge" \
 	"branch" \
 )
 

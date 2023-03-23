@@ -7,6 +7,7 @@ mod home;
 mod init;
 mod list;
 mod merge;
+mod open;
 mod remove;
 
 use anyhow::Result;
@@ -25,6 +26,7 @@ pub enum Cmd {
     Config(Config),
     Branch(Branch),
     Merge(Merge),
+    Open(Open),
 }
 
 // Home print the path for a repository
@@ -148,6 +150,13 @@ pub struct Merge {
     pub target: Option<String>,
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Open current repository in default browser")]
+pub struct Open {
+    #[clap(long, short)]
+    pub branch: bool,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -165,6 +174,7 @@ impl Run for Cmd {
             Cmd::Config(config) => config.run(),
             Cmd::Branch(branch) => branch.run(),
             Cmd::Merge(merge) => merge.run(),
+            Cmd::Open(open) => open.run(),
         }
     }
 }
