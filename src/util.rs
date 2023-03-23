@@ -158,8 +158,6 @@ pub fn confirm(msg: impl AsRef<str> + Into<String>) -> Result<()> {
     }
 }
 
-const EDIT_EMPTY: &str = "edit content is empty";
-
 pub fn edit<S>(msg: S, ext: S, required: bool) -> Result<String>
 where
     S: AsRef<str>,
@@ -172,16 +170,11 @@ where
     match text {
         Some(s) => {
             if required && s.is_empty() {
-                bail!(EDIT_EMPTY)
+                bail!("edit content cannot be empty")
             }
             Ok(s)
         }
-        None => {
-            if required {
-                bail!(EDIT_EMPTY)
-            }
-            Ok(String::new())
-        }
+        None => bail!("you did not edit anything"),
     }
 }
 
