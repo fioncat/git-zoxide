@@ -32,6 +32,7 @@ impl Run for Merge {
         }
 
         let mut opts = self.options(repo, &provider, &upstream)?;
+        opts.upstream = upstream;
         if let None = opts.upstream {
             if opts.source.eq(&opts.target) {
                 bail!("could not merge myself")
@@ -86,8 +87,8 @@ impl Merge {
         Ok(MergeOption {
             repo: repo.name.clone(),
             upstream: None,
-            title: "test".to_string(),
-            body: "test".to_string(),
+            title: String::new(),
+            body: String::new(),
             source,
             target,
         })

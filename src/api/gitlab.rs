@@ -10,6 +10,32 @@ pub struct Gitlab {
     client: gitlab::Gitlab,
 }
 
+impl Gitlab {
+    pub fn new<U, T>(url: U, token: T) -> Result<Box<dyn Provider>>
+    where
+        U: AsRef<str>,
+        T: AsRef<str>,
+    {
+        if url.as_ref().is_empty() {
+            bail!("for gitlab provider, you must specify api url, please check your config")
+        }
+        let client = gitlab::Gitlab::new(url.as_ref(), token.as_ref())
+            .context("unable to init gitlab client")?;
+        Ok(Box::new(Gitlab { client }))
+    }
+
+    fn get_project(&self, name: impl AsRef<str>) -> Result<types::Project> {
+        let endpoint = projects::Project::builder()
+            .project(name.as_ref())
+            .build()
+            .context("unable to build gitlab project endpoint")?;
+        let project = endpoint
+            .query(&self.client)
+            .context("unable to get project")?;
+        Ok(project)
+    }
+}
+
 impl Provider for Gitlab {
     fn list(&self, group: &str) -> Result<Vec<String>> {
         let endpoint = groups::projects::GroupProjects::builder()
@@ -79,31 +105,5 @@ impl Provider for Gitlab {
             .context("unable to create merge_request")?;
 
         Ok(mr.web_url)
-    }
-}
-
-impl Gitlab {
-    pub fn new<U, T>(url: U, token: T) -> Result<Box<dyn Provider>>
-    where
-        U: AsRef<str>,
-        T: AsRef<str>,
-    {
-        if url.as_ref().is_empty() {
-            bail!("for gitlab provider, you must specify api url, please check your config")
-        }
-        let client = gitlab::Gitlab::new(url.as_ref(), token.as_ref())
-            .context("unable to init gitlab client")?;
-        Ok(Box::new(Gitlab { client }))
-    }
-
-    fn get_project(&self, name: impl AsRef<str>) -> Result<types::Project> {
-        let endpoint = projects::Project::builder()
-            .project(name.as_ref())
-            .build()
-            .context("unable to build gitlab project endpoint")?;
-        let project = endpoint
-            .query(&self.client)
-            .context("unable to get project")?;
-        Ok(project)
     }
 }
