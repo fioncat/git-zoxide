@@ -7,10 +7,7 @@ use std::mem;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
-
-use lazy_static::lazy_static;
 
 use anyhow::{bail, Context, Result};
 
@@ -122,18 +119,6 @@ fn rename(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<()> {
     }
 }
 
-lazy_static! {
-    static ref PRINTED: AtomicBool = AtomicBool::new(false);
-}
-
-pub fn is_printed() -> bool {
-    PRINTED.load(Ordering::Relaxed)
-}
-
-fn mark_printed() {
-    PRINTED.store(true, Ordering::Relaxed);
-}
-
 pub fn split_name<'a>(query: impl AsRef<str>) -> (String, String) {
     let items: Vec<_> = query.as_ref().split("/").collect();
     let items_len = items.len();
@@ -167,7 +152,6 @@ pub fn confirm(msg: impl AsRef<str> + Into<String>) -> Result<()> {
             if !ok {
                 bail!(SilentExit { code: 60 })
             }
-            mark_printed();
             Ok(())
         }
         Err(err) => Err(err).context("could not do confirm prompt"),
@@ -234,7 +218,6 @@ pub fn path_to_str<'a>(path: &'a PathBuf) -> Result<&'a str> {
 
 pub fn print_operation(s: impl AsRef<str>) {
     _ = writeln!(io::stderr(), "{} {}", style("==>").green(), s.as_ref());
-    mark_printed();
 }
 
 const ERR_FZF_NOT_FOUND: &str = "could not find fzf, is it installed?";
@@ -465,7 +448,6 @@ impl Shell {
             style("==>").cyan(),
             style(cmd_str).bold()
         );
-        mark_printed();
         Ok(())
     }
 }

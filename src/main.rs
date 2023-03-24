@@ -21,9 +21,6 @@ fn main() -> ExitCode {
         Err(err) => match err.downcast::<SilentExit>() {
             Ok(SilentExit { code }) => code.into(),
             Err(err) => {
-                if util::is_printed() {
-                    _ = writeln!(io::stderr());
-                }
                 _ = writeln!(io::stderr(), "{}: {err:?}", style("error").red());
                 ExitCode::FAILURE
             }
