@@ -59,6 +59,9 @@ impl Branch {
         }
         if !self.all {
             for branch in branches {
+                if branch.current && self.cmp {
+                    continue;
+                }
                 println!("{}", branch.name);
             }
             return;

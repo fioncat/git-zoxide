@@ -8,7 +8,10 @@ mod init;
 mod list;
 mod merge;
 mod open;
+mod rebase;
 mod remove;
+mod reset;
+mod squash;
 
 use anyhow::Result;
 use clap::Parser;
@@ -27,6 +30,9 @@ pub enum Cmd {
     Branch(Branch),
     Merge(Merge),
     Open(Open),
+    Rebase(Rebase),
+    Squash(Squash),
+    Reset(Reset),
 }
 
 // Home print the path for a repository
@@ -135,6 +141,9 @@ pub struct Branch {
 
     #[clap(long, short)]
     pub push: bool,
+
+    #[clap(long)]
+    pub cmp: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -157,6 +166,42 @@ pub struct Open {
     pub branch: bool,
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Rebase default branch")]
+pub struct Rebase {
+    #[clap(num_args = 0..=1)]
+    pub args: Vec<String>,
+
+    #[clap(long, short)]
+    pub upstream: bool,
+}
+
+#[derive(Debug, Parser)]
+#[command(about = "Squash multiple commits into one")]
+pub struct Squash {
+    #[clap(num_args = 0..=1)]
+    pub args: Vec<String>,
+
+    #[clap(long, short)]
+    pub upstream: bool,
+
+    #[clap(long, short)]
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Parser)]
+#[command(about = "Reset git to remote")]
+pub struct Reset {
+    #[clap(num_args = 0..=1)]
+    pub args: Vec<String>,
+
+    #[clap(long, short)]
+    pub default: bool,
+
+    #[clap(long, short)]
+    pub upstream: bool,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -175,6 +220,9 @@ impl Run for Cmd {
             Cmd::Branch(branch) => branch.run(),
             Cmd::Merge(merge) => merge.run(),
             Cmd::Open(open) => open.run(),
+            Cmd::Rebase(rebase) => rebase.run(),
+            Cmd::Squash(squash) => squash.run(),
+            Cmd::Reset(reset) => reset.run(),
         }
     }
 }

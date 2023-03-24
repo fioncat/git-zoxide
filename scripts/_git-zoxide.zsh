@@ -9,6 +9,9 @@ _GIT_ZOXIDE_CMDS=( \
 	"open" \
 	"merge" \
 	"branch" \
+	"rebase" \
+	"reset" \
+	"squash" \
 )
 
 _git-zoxide() {
@@ -42,6 +45,15 @@ _git-zoxide() {
 		branch)
 			_git-zoxide_cmp_branch
 			;;
+		rebase)
+			_git-zoxide_cmp_branch
+			;;
+		reset)
+			_git-zoxide_cmp_branch
+			;;
+		squash)
+			_git-zoxide_cmp_branch
+			;;
 	esac
 	if (( ${#words[@]} > 4 )); then
 		_arguments '*:dir:_dirs'
@@ -58,7 +70,7 @@ _git-zoxide_cmp_remote() {
 
 _git-zoxide_cmp_branch() {
 	if [ "${#words[@]}" -eq "3" ]; then
-		local branches=($($cmd branch 2>/dev/null))
+		local branches=($($cmd branch --cmp 2>/dev/null))
 		_describe 'command' branches
 		return
 	fi
