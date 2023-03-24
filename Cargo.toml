@@ -1,10 +1,10 @@
 [package]
 name = "git-zoxide"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["fioncat <lazycat7706@gmail.com>"]
 categories = ["command-line-utilities", "filesystem"]
-description = "Yet anthoer zoxide for git repositories"
+description = "Yet another zoxide for git repositories"
 homepage = "https://github.com/fioncat/git-zoxide"
 keywords = ["cli"]
 license = "MIT"
@@ -55,6 +55,6 @@ assets = [
         "644",
     ],
 ]
-extended-description = "git-zoxide is yet anthoer zoxide for git repositories"
+extended-description = "git-zoxide is yet another zoxide for git repositories"
 priority = "optional"
 section = "utils"
