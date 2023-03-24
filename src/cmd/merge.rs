@@ -32,6 +32,7 @@ impl Run for Merge {
         }
 
         let mut opts = self.options(repo, &provider, &upstream)?;
+        opts.upstream = upstream;
         if let None = opts.upstream {
             if opts.source.eq(&opts.target) {
                 bail!("could not merge myself")
@@ -86,14 +87,16 @@ impl Merge {
         Ok(MergeOption {
             repo: repo.name.clone(),
             upstream: None,
-            title: "test".to_string(),
-            body: "test".to_string(),
+            title: String::new(),
+            body: String::new(),
             source,
             target,
         })
     }
 
     fn create(&self, opts: &mut MergeOption, provider: &Box<dyn Provider>) -> Result<String> {
+        println!();
+        util::confirm(format!("do you want to create merge {}", opts.display()))?;
         (opts.title, opts.body) = self.input()?;
 
         println!();
@@ -103,6 +106,7 @@ impl Merge {
         println!();
 
         util::confirm("continue")?;
+        println!();
 
         util::print_operation(format!(
             "provider: create merge request {}",

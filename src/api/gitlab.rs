@@ -80,6 +80,19 @@ impl Provider for Gitlab {
 
         Ok(mr.web_url)
     }
+
+    fn get_repo_url(
+        &self,
+        name: &str,
+        branch: Option<String>,
+        remote: &crate::config::Remote,
+    ) -> Result<String> {
+        if let None = remote.clone {
+            bail!("you must provide clone config to get gitlab repo url, please check your config")
+        }
+        let clone = remote.clone.as_ref().unwrap();
+        crate::api::get_repo_url(&clone.domain, name, branch)
+    }
 }
 
 impl Gitlab {

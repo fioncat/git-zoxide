@@ -5,7 +5,7 @@ use serde::Serialize;
 use tokio::runtime::Runtime;
 
 use crate::{
-    api::{MergeOption, Provider},
+    api::{self, MergeOption, Provider},
     errors, util,
 };
 
@@ -35,9 +35,11 @@ impl Github {
     const QUERY_PER_PAGE: u32 = 200;
 
     pub fn new(token: impl AsRef<str>) -> Result<Box<dyn Provider>> {
-        let instance = Octocrab::builder()
-            .personal_token(token.as_ref().to_string())
-            .build()?;
+        let mut builder = Octocrab::builder();
+        if !token.as_ref().is_empty() {
+            builder = builder.personal_token(token.as_ref().to_string());
+        }
+        let instance = builder.build()?;
         let runtime = Runtime::new().context("unable to create tokio runtime")?;
         let query_opt = GithubQueryOption {
             per_page: Self::QUERY_PER_PAGE,
@@ -137,6 +139,15 @@ impl Provider for Github {
             Some(url) => Ok(url.to_string()),
             None => bail!("github didnot return html_url for pr"),
         }
+    }
+
+    fn get_repo_url(
+        &self,
+        name: &str,
+        branch: Option<String>,
+        _remote: &crate::config::Remote,
+    ) -> Result<String> {
+        api::get_repo_url("github.com", name, branch)
     }
 }
 

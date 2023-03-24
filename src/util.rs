@@ -11,7 +11,9 @@ use std::time::SystemTime;
 
 use anyhow::{bail, Context, Result};
 
-use crate::db::Epoch;
+use crate::api;
+use crate::config::Config;
+use crate::db::{Database, Epoch, Repo};
 use crate::errors::SilentExit;
 
 use console::{style, StyledObject, Term};
@@ -158,8 +160,6 @@ pub fn confirm(msg: impl AsRef<str> + Into<String>) -> Result<()> {
     }
 }
 
-const EDIT_EMPTY: &str = "edit content is empty";
-
 pub fn edit<S>(msg: S, ext: S, required: bool) -> Result<String>
 where
     S: AsRef<str>,
@@ -172,16 +172,11 @@ where
     match text {
         Some(s) => {
             if required && s.is_empty() {
-                bail!(EDIT_EMPTY)
+                bail!("edit content cannot be empty")
             }
             Ok(s)
         }
-        None => {
-            if required {
-                bail!(EDIT_EMPTY)
-            }
-            Ok(String::new())
-        }
+        None => bail!("you did not edit anything"),
     }
 }
 
@@ -225,6 +220,14 @@ pub fn path_to_str<'a>(path: &'a PathBuf) -> Result<&'a str> {
 
 pub fn print_operation(s: impl AsRef<str>) {
     _ = writeln!(io::stderr(), "{} {}", style("==>").green(), s.as_ref());
+}
+
+pub fn option_arg<'a>(args: &'a Vec<String>) -> Option<&'a str> {
+    if args.is_empty() {
+        None
+    } else {
+        Some(args[0].as_str())
+    }
 }
 
 const ERR_FZF_NOT_FOUND: &str = "could not find fzf, is it installed?";
@@ -332,6 +335,11 @@ impl Shell {
         }
     }
 
+    pub fn inherit(&mut self) -> &mut Self {
+        self.cmd.stdout(Stdio::inherit());
+        self
+    }
+
     pub fn select_cmd<S, I>(names: I) -> Option<S>
     where
         S: AsRef<OsStr>,
@@ -418,11 +426,13 @@ impl Shell {
             Err(e) => return Err(e).with_context(|| format!("could not launch {}", "")),
         };
 
-        let mut stdout = child.stdout.take().unwrap();
         let mut output = String::new();
-        stdout
-            .read_to_string(&mut output)
-            .with_context(|| format!("failed to read from {}", program))?;
+
+        if let Some(mut stdout) = child.stdout.take() {
+            stdout
+                .read_to_string(&mut output)
+                .with_context(|| format!("failed to read from {}", program))?;
+        }
 
         let status = child
             .wait()
@@ -490,8 +500,6 @@ pub struct GitBranch {
 
 impl GitBranch {
     const BRANCH_REGEX: &str = r"^(\*)*[ ]*([^ ]*)[ ]*([^ ]*)[ ]*(\[[^\]]*\])*[ ]*(.*)$";
-    const REMOTE_REF: &str = "refs/remotes/origin/";
-    const HEAD_REF: &str = "refs/remotes/origin/HEAD";
     const HEAD_BRANCH_PREFIX: &str = "HEAD branch:";
 
     pub fn list() -> Result<Vec<GitBranch>> {
@@ -511,14 +519,24 @@ impl GitBranch {
     }
 
     pub fn default() -> Result<String> {
-        print_operation("try to get default branch");
+        Self::default_by_remote("origin")
+    }
+
+    pub fn default_by_remote(remote: &str) -> Result<String> {
+        print_operation(format!(
+            "try to get default branch for {}",
+            style(remote).yellow()
+        ));
+        let head_ref = format!("refs/remotes/{}/HEAD", remote);
+        let remote_ref = format!("refs/remotes/{}/", remote);
+
         let mut git = Shell::git();
-        git.args(["symbolic-ref", Self::HEAD_REF]);
+        git.args(["symbolic-ref", &head_ref]);
         if let Ok(out) = git.exec() {
             if out.is_empty() {
                 bail!("default branch is empty")
             }
-            return match out.strip_prefix(Self::REMOTE_REF) {
+            return match out.strip_prefix(&remote_ref) {
                 Some(s) => Ok(s.to_string()),
                 None => bail!("invalid ref output by git: {}", style(out).yellow()),
             };
@@ -526,7 +544,7 @@ impl GitBranch {
         // If failed, user might not switch to this branch yet, let's
         // use "git show <remote>" instead to get default branch.
         let mut git = Shell::git();
-        git.args(["remote", "show", "origin"]);
+        git.args(["remote", "show", remote]);
         let output = git.exec()?;
         let lines: Vec<&str> = output.split("\n").collect();
         for line in lines {
@@ -623,6 +641,82 @@ impl GitBranch {
             status,
             current,
         })
+    }
+}
+
+pub struct GitRemote(String);
+
+impl GitRemote {
+    pub fn list() -> Result<Vec<GitRemote>> {
+        let output = Shell::git().arg("remote").exec()?;
+        let remotes: Vec<GitRemote> = output
+            .split("\n")
+            .map(|s| GitRemote(s.to_string()))
+            .collect();
+        Ok(remotes)
+    }
+
+    pub fn build(upstream: bool) -> Result<GitRemote> {
+        if !upstream {
+            return Ok(GitRemote(String::from("origin")));
+        }
+
+        let remotes = Self::list()?;
+        let upstream_remote = remotes
+            .into_iter()
+            .find(|remote| remote.0.as_str() == "upstream");
+        if let Some(remote) = upstream_remote {
+            return Ok(remote);
+        }
+
+        let db = Database::open()?;
+        let config = Config::parse()?;
+        let repo = db.current(&config.workspace)?;
+        let remote_config = config.must_get_remote(&repo.remote)?;
+        let provider = api::create_provider(&remote_config)?;
+
+        print_operation(format!(
+            "provider: try to get upstream for {}",
+            style(&repo.name).yellow()
+        ));
+        let upstream = provider.get_upstream(&repo.name)?;
+
+        let clone = match &remote_config.clone {
+            Some(clone) => clone,
+            None => bail!("require clone config for remote, please check your config"),
+        };
+
+        let upstream_repo = Repo {
+            remote: remote_config.name.clone(),
+            name: upstream,
+            path: String::new(),
+            last_accessed: 0,
+            accessed: 0.0,
+        };
+        let url = upstream_repo.clone_url(clone);
+
+        confirm(format!(
+            "do you want to set upstream to {}",
+            style(&url).yellow()
+        ))?;
+        Shell::git()
+            .args(["remote", "add", "upstream", url.as_str()])
+            .exec()?;
+        Ok(GitRemote(String::from("upstream")))
+    }
+
+    pub fn target(&self, branch: Option<&str>) -> Result<String> {
+        let (target, branch) = match branch {
+            Some(branch) => (format!("{}/{}", self.0, branch), branch.to_string()),
+            None => {
+                let branch = GitBranch::default_by_remote(&self.0)?;
+                (format!("{}/{}", self.0, branch), branch)
+            }
+        };
+        Shell::git()
+            .args(["fetch", self.0.as_str(), branch.as_str()])
+            .exec()?;
+        Ok(target)
     }
 }
 
