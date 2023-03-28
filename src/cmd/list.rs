@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::collections::HashSet;
 
 use anyhow::Result;
@@ -15,7 +14,7 @@ impl Run for List {
         if self.args.is_empty() {
             if self.all {
                 let db = Database::open()?;
-                let mut name_set = BTreeSet::new();
+                let mut name_set = HashSet::with_capacity(db.repos.len() + cfg.remotes.len());
                 for remote in &cfg.remotes {
                     name_set.insert(remote.name.clone());
                     println!("{}", remote.name);
