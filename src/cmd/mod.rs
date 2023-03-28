@@ -101,6 +101,9 @@ pub struct List {
 
     #[clap(long, short)]
     pub group: bool,
+
+    #[clap(long, short)]
+    pub all: bool,
 }
 
 #[derive(Debug, Parser)]

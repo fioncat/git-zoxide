@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::collections::HashSet;
 
 use anyhow::Result;
@@ -12,8 +13,25 @@ impl Run for List {
     fn run(&self) -> Result<()> {
         let cfg = Config::parse()?;
         if self.args.is_empty() {
-            for remote in &cfg.remotes {
-                println!("{}", remote.name);
+            if self.all {
+                let db = Database::open()?;
+                let mut name_set = BTreeSet::new();
+                for remote in &cfg.remotes {
+                    name_set.insert(remote.name.clone());
+                    println!("{}", remote.name);
+                }
+                for repo in &db.repos {
+                    let (_, name) = util::split_name(&repo.name);
+                    if let Some(_) = name_set.get(&name) {
+                        continue;
+                    }
+                    println!("{}", name);
+                    name_set.insert(name);
+                }
+            } else {
+                for remote in &cfg.remotes {
+                    println!("{}", remote.name);
+                }
             }
             return Ok(());
         }
