@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use console::style;
 use serde::Deserialize;
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io;
@@ -129,12 +129,12 @@ impl Config {
             Ok(path) => path.to_string(),
             Err(err) => bail!("failed to expand workspace env: {err}"),
         };
-        let mut remote_set: HashMap<&String, ()> = HashMap::new();
+        let mut remote_set: HashSet<&String> = HashSet::with_capacity(self.remotes.len());
         for remote in &mut self.remotes {
             if let Some(_) = remote_set.get(&remote.name) {
-                bail!("remote {} is duplicate", remote.name)
+                bail!("remote {} is duplicate in your config", remote.name)
             }
-            remote_set.insert(&remote.name, ());
+            remote_set.insert(&remote.name);
 
             if let Some(api) = &mut remote.api {
                 api.token = match shellexpand::env(&api.token) {
