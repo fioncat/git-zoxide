@@ -12,6 +12,7 @@ _GIT_ZOXIDE_CMDS=( \
 	"rebase" \
 	"reset" \
 	"squash" \
+	"jump" \
 )
 
 _git-zoxide() {
@@ -32,8 +33,11 @@ _git-zoxide() {
 		detach)
 			;;
 		home)
-			_git-zoxide_cmp_remote_all
+			_git-zoxide_cmp_remote
 			_git-zoxide_cmp_repo
+			;;
+		jump)
+			_git-zoxide_cmp_keyword
 			;;
 		list)
 			_git-zoxide_cmp_remote
@@ -68,9 +72,9 @@ _git-zoxide_cmp_remote() {
 	fi
 }
 
-_git-zoxide_cmp_remote_all() {
+_git-zoxide_cmp_keyword() {
 	if [ "${#words[@]}" -eq "3" ]; then
-		local remotes=($($cmd list --all 2>/dev/null))
+		local remotes=($($cmd list --keyword 2>/dev/null))
 		_describe 'command' remotes
 		return
 	fi

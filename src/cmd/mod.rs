@@ -5,6 +5,7 @@ mod config;
 mod detach;
 mod home;
 mod init;
+mod jump;
 mod list;
 mod merge;
 mod open;
@@ -33,6 +34,7 @@ pub enum Cmd {
     Rebase(Rebase),
     Squash(Squash),
     Reset(Reset),
+    Jump(Jump),
 }
 
 // Home print the path for a repository
@@ -99,11 +101,11 @@ pub struct List {
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
 
-    #[clap(long, short)]
+    #[clap(long)]
     pub group: bool,
 
-    #[clap(long, short)]
-    pub all: bool,
+    #[clap(long)]
+    pub keyword: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -115,6 +117,9 @@ pub struct Init {
 
     #[clap(long)]
     pub home_cmd: Option<String>,
+
+    #[clap(long)]
+    pub jump_cmd: Option<String>,
 }
 
 #[derive(Debug, Parser)]
@@ -205,6 +210,12 @@ pub struct Reset {
     pub upstream: bool,
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Quick jump to a repository (please use `gz` instead)")]
+pub struct Jump {
+    pub keyword: String,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -226,6 +237,7 @@ impl Run for Cmd {
             Cmd::Rebase(rebase) => rebase.run(),
             Cmd::Squash(squash) => squash.run(),
             Cmd::Reset(reset) => reset.run(),
+            Cmd::Jump(jump) => jump.run(),
         }
     }
 }
