@@ -53,7 +53,7 @@ impl Home {
             match cfg.get_remote(arg.as_str()) {
                 Some(remote) => return Ok((remote, self.search_repo(db, arg, "")?)),
                 None => {
-                    let idx = db.match_keyword("", arg)?;
+                    let idx = db.match_keyword("", arg, &cfg.keyword_map)?;
                     let remote = cfg.must_get_remote(&db.repos[idx].remote)?;
                     return Ok((remote, idx));
                 }
@@ -76,7 +76,7 @@ impl Home {
             return Ok((remote, idx));
         }
         if !self.create {
-            if let Ok(idx) = db.match_keyword(remote_name, name) {
+            if let Ok(idx) = db.match_keyword(remote_name, name, &cfg.keyword_map) {
                 return Ok((remote, idx));
             }
         }

@@ -34,6 +34,19 @@ impl Run for List {
                 name_set.insert(keyword.to_string());
                 println!("{}", keyword);
             }
+
+            let mut keys: Vec<_> = cfg
+                .keyword_map
+                .iter()
+                .map(|(key, _)| key.to_string())
+                .collect();
+            keys.sort_by(|s1, s2| s1.cmp(&s2));
+            for key in keys {
+                if let None = name_set.get(&key) {
+                    println!("{}", key);
+                }
+            }
+
             return Ok(());
         }
 

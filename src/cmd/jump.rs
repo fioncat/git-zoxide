@@ -12,11 +12,11 @@ impl Run for Jump {
         let now = util::current_time()?;
         let mut db = Database::open()?;
         let mut keywords = Keywords::open(now)?;
+        let config = Config::parse()?;
 
-        let idx = db.match_keyword("", &self.keyword)?;
+        let idx = db.match_keyword("", &self.keyword, &config.keyword_map)?;
         let repo = &db.repos[idx];
 
-        let config = Config::parse()?;
         let remote = config.must_get_remote(&repo.remote)?;
         let path = repo.ensure_path(&config.workspace, &remote)?;
         println!("{}", path.display());
