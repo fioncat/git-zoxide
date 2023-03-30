@@ -5,6 +5,7 @@ use crate::cmd::Run;
 
 const DEFAULT_CMD: &str = "gz";
 const DEFAULT_HOME: &str = "zz";
+const DEFAULT_JUMP: &str = "zj";
 
 impl Run for Init {
     fn run(&self) -> Result<()> {
@@ -26,7 +27,16 @@ impl Run for Init {
             DEFAULT_HOME
         };
 
-        let init = init.replace("{{CMD}}", cmd).replace("{{HOME_CMD}}", home);
+        let jump = if let Some(s) = &self.jump_cmd {
+            s.as_str()
+        } else {
+            DEFAULT_JUMP
+        };
+
+        let init = init
+            .replace("{{CMD}}", cmd)
+            .replace("{{HOME_CMD}}", home)
+            .replace("{{JUMP_CMD}}", jump);
         println!("{}", init);
 
         Ok(())

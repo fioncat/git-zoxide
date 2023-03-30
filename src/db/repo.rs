@@ -1,12 +1,15 @@
+use std::fs;
+use std::io;
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result};
 
 use serde::{Deserialize, Serialize};
 
+use crate::config::User;
 use crate::{
-    config::Clone,
-    util::{self, DAY, HOUR, WEEK},
+    config::{Clone, Remote},
+    util::{self, Shell, DAY, HOUR, WEEK},
 };
 
 pub type Epoch = u64;
@@ -55,6 +58,74 @@ impl Repo {
             }
             Err(err) => Err(err).context("could not parse repo path"),
         }
+    }
+
+    pub fn ensure_path(&self, workspace: impl AsRef<str>, remote: &Remote) -> Result<PathBuf> {
+        let path = self.path(workspace.as_ref())?;
+        match fs::read_dir(&path) {
+            Ok(_) => Ok(path),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => match &remote.clone {
+                Some(clone) => {
+                    self.ensure_clone(clone, &path, &remote.user)?;
+                    Ok(path)
+                }
+                None => {
+                    self.ensure_create(&remote, &path)?;
+                    Ok(path)
+                }
+            },
+            Err(err) => Err(err)
+                .with_context(|| format!("could not read repository directory {}", path.display())),
+        }
+    }
+
+    fn ensure_clone(&self, clone: &Clone, path: &PathBuf, user: &Option<User>) -> Result<()> {
+        let url = self.clone_url(clone);
+
+        let path = util::path_to_str(path)?;
+
+        let mut git = Shell::git();
+        git.arg("clone").args([url.as_str(), path]).exec()?;
+
+        if let Some(user) = user {
+            Shell::git()
+                .with_git_path(path)
+                .args(["config", "user.name"])
+                .arg(&user.name)
+                .exec()?;
+            Shell::git()
+                .with_git_path(path)
+                .args(["config", "user.email"])
+                .arg(&user.email)
+                .exec()?;
+        }
+
+        Ok(())
+    }
+
+    fn ensure_create(&self, remote: &Remote, path: &PathBuf) -> Result<()> {
+        fs::create_dir_all(&path).with_context(|| {
+            format!("unable to create repository directory: {}", path.display())
+        })?;
+        let path_str = util::path_to_str(path)?;
+        Shell::git().with_git_path(path_str).arg("init").exec()?;
+        if let Some(script) = &remote.on_create {
+            let lines: Vec<&str> = script.split("\n").collect();
+            for line in lines {
+                if line.is_empty() {
+                    continue;
+                }
+                let mut bash = Shell::bash(line);
+
+                bash.env("REPO_NAME", &self.name);
+                bash.env("REMOTE", &remote.name);
+
+                bash.with_path(path);
+
+                bash.exec()?;
+            }
+        }
+        Ok(())
     }
 
     pub fn clone_url(&self, cfg: &Clone) -> String {

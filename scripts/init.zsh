@@ -15,7 +15,7 @@ _git-zoxide_home() {
 {{CMD}}() {
 	action=$1
 	case "${action}" in
-		home)
+		home|jump)
 			_git-zoxide_home $@
 			;;
 
@@ -28,3 +28,4 @@ _git-zoxide_home() {
 
 compdef _git-zoxide {{CMD}}
 alias {{HOME_CMD}}='{{CMD}} home'
+alias {{JUMP_CMD}}='{{CMD}} jump'

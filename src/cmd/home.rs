@@ -1,18 +1,13 @@
-use std::fs;
-use std::io;
-use std::path::PathBuf;
-
 use anyhow::bail;
-use anyhow::Context;
 use anyhow::Result;
 use console::style;
 
 use crate::api;
 use crate::cmd::Home;
 use crate::cmd::Run;
-use crate::config::{Clone, Config, Remote, User};
-use crate::db::{Database, Repo};
-use crate::util::{self, Shell};
+use crate::config::{Config, Remote};
+use crate::db::Database;
+use crate::util;
 
 impl Run for Home {
     fn run(&self) -> Result<()> {
@@ -21,12 +16,11 @@ impl Run for Home {
         let now = util::current_time()?;
 
         let (remote, repo_idx) = self.query(&mut db, &cfg)?;
+        let repo = &db.repos[repo_idx];
 
-        self.ensure_path(&cfg, &db.repos[repo_idx], remote)?;
+        let path = repo.ensure_path(&cfg.workspace, remote)?;
         db.update(repo_idx, now);
 
-        let repo = &db.repos[repo_idx];
-        let path = repo.path(&cfg.workspace)?;
         println!("{}", path.display());
 
         db.sort(now);
@@ -59,7 +53,7 @@ impl Home {
             match cfg.get_remote(arg.as_str()) {
                 Some(remote) => return Ok((remote, self.search_repo(db, arg, "")?)),
                 None => {
-                    let idx = self.match_repo(db, "", arg)?;
+                    let idx = db.match_keyword("", arg)?;
                     let remote = cfg.must_get_remote(&db.repos[idx].remote)?;
                     return Ok((remote, idx));
                 }
@@ -82,7 +76,7 @@ impl Home {
             return Ok((remote, idx));
         }
         if !self.create {
-            if let Ok(idx) = self.match_repo(db, remote_name, name) {
+            if let Ok(idx) = db.match_keyword(remote_name, name) {
                 return Ok((remote, idx));
             }
         }
@@ -165,97 +159,5 @@ impl Home {
             style(name.as_ref()).yellow()
         ))?;
         Ok(db.add(remote.as_ref(), name.as_ref(), ""))
-    }
-
-    fn match_repo<R, Q>(&self, db: &Database, remote: R, query: Q) -> Result<usize>
-    where
-        R: AsRef<str>,
-        Q: AsRef<str>,
-    {
-        let (group, base) = util::split_name(query.as_ref());
-        let opt = db.repos.iter().position(|repo| {
-            if remote.as_ref() != "" && repo.remote != remote.as_ref() {
-                return false;
-            }
-            let (repo_group, repo_base) = util::split_name(&repo.name);
-            if group == "" {
-                return repo_base.contains(&base);
-            }
-
-            repo_group == group && repo_base.contains(&base)
-        });
-        match opt {
-            Some(idx) => Ok(idx),
-            None => bail!(
-                "could not find repository matches {}",
-                style(query.as_ref()).yellow()
-            ),
-        }
-    }
-
-    fn ensure_path(&self, cfg: &Config, repo: &Repo, remote: &Remote) -> Result<()> {
-        let path = repo.path(&cfg.workspace)?;
-        match fs::read_dir(&path) {
-            Ok(_) => Ok(()),
-            Err(err) if err.kind() == io::ErrorKind::NotFound => match &remote.clone {
-                Some(clone) => self.clone(repo, &clone, &path, &remote.user),
-                None => self.create_dir(repo, remote, &path),
-            },
-            Err(err) => Err(err)
-                .with_context(|| format!("could not read repository directory {}", path.display())),
-        }
-    }
-
-    fn clone(&self, repo: &Repo, clone: &Clone, path: &PathBuf, user: &Option<User>) -> Result<()> {
-        let url = repo.clone_url(clone);
-
-        let path = util::path_to_str(path)?;
-
-        let mut git = Shell::git();
-        git.arg("clone").args([url.as_str(), path]).exec()?;
-
-        if let Some(user) = user {
-            Shell::git()
-                .with_git_path(path)
-                .args(["config", "user.name"])
-                .arg(&user.name)
-                .exec()?;
-            Shell::git()
-                .with_git_path(path)
-                .args(["config", "user.email"])
-                .arg(&user.email)
-                .exec()?;
-        }
-
-        Ok(())
-    }
-
-    fn create_dir(&self, repo: &Repo, remote: &Remote, path: &PathBuf) -> Result<()> {
-        fs::create_dir_all(&path).with_context(|| {
-            format!("unable to create repository directory: {}", path.display())
-        })?;
-        let path_str = util::path_to_str(path)?;
-        Shell::git().with_git_path(path_str).arg("init").exec()?;
-        self.after_create(repo, remote, path)
-    }
-
-    fn after_create(&self, repo: &Repo, remote: &Remote, path: &PathBuf) -> Result<()> {
-        if let Some(script) = &remote.on_create {
-            let lines: Vec<&str> = script.split("\n").collect();
-            for line in lines {
-                if line.is_empty() {
-                    continue;
-                }
-                let mut bash = Shell::bash(line);
-
-                bash.env("REPO_NAME", &repo.name);
-                bash.env("REMOTE", &remote.name);
-
-                bash.with_path(path);
-
-                bash.exec()?;
-            }
-        }
-        Ok(())
     }
 }

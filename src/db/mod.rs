@@ -1,7 +1,7 @@
 mod repo;
 
 use console::style;
-use std::{fs, io, path::PathBuf};
+use std::{collections::HashMap, fs, io, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
 use bincode::Options;
@@ -35,14 +35,14 @@ impl Database {
                     repos: vec![],
                 })
             }
-            Err(err) => bail!("failed to read db: {err}"),
+            Err(err) => Err(err).context("could not read database file"),
         }
     }
 
     pub fn save(&mut self) -> Result<()> {
         let bytes = Self::serialize(&self.repos)?;
         if let Err(err) = util::write(&self.path, bytes) {
-            bail!("failed to write database: {err}");
+            return Err(err).context("could not write database file");
         }
 
         Ok(())
@@ -122,6 +122,32 @@ impl Database {
         Ok(paths)
     }
 
+    pub fn match_keyword<R, K>(&self, remote: R, keyword: K) -> Result<usize>
+    where
+        R: AsRef<str>,
+        K: AsRef<str>,
+    {
+        let (group, base) = util::split_name(keyword.as_ref());
+        let opt = self.repos.iter().position(|repo| {
+            if remote.as_ref() != "" && repo.remote != remote.as_ref() {
+                return false;
+            }
+            let (repo_group, repo_base) = util::split_name(&repo.name);
+            if group == "" {
+                return repo_base.contains(&base);
+            }
+
+            repo_group == group && repo_base.contains(&base)
+        });
+        match opt {
+            Some(idx) => Ok(idx),
+            None => bail!(
+                "could not find repository matches {}",
+                style(keyword.as_ref()).yellow()
+            ),
+        }
+    }
+
     pub fn update(&mut self, idx: usize, now: Epoch) {
         let mut repo = &mut self.repos[idx];
         repo.last_accessed = now;
@@ -173,5 +199,98 @@ impl Database {
         };
 
         Ok(repos)
+    }
+}
+
+pub struct Keywords {
+    path: PathBuf,
+    pub data: HashMap<String, Epoch>,
+}
+
+impl Keywords {
+    const VERSION: u32 = 1;
+
+    pub fn open(now: Epoch) -> Result<Keywords> {
+        let data_dir = config::Config::get_data_dir()?;
+        let path = data_dir.join("keywords");
+
+        match fs::read(&path) {
+            Ok(bytes) => Ok(Keywords {
+                path,
+                data: Self::deserialize(&bytes, now)?,
+            }),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                fs::create_dir_all(&data_dir).with_context(|| {
+                    format!("unable to create data directory: {}", data_dir.display())
+                })?;
+                Ok(Keywords {
+                    path,
+                    data: HashMap::new(),
+                })
+            }
+            Err(err) => Err(err).context("could not open keywords file"),
+        }
+    }
+
+    pub fn save(&mut self) -> Result<()> {
+        let bytes = Self::serialize(&self.data)?;
+        if let Err(err) = util::write(&self.path, bytes) {
+            return Err(err).context("could not write keywords file");
+        }
+
+        Ok(())
+    }
+
+    pub fn list(&self) -> Vec<&str> {
+        let mut vec: Vec<&str> = self.data.iter().map(|(key, _)| key.as_str()).collect();
+        vec.sort_by(|s1, s2| s1.cmp(s2));
+        vec
+    }
+
+    pub fn add(&mut self, keyword: &str, now: Epoch) {
+        self.data.insert(keyword.to_string(), now + util::DAY);
+    }
+
+    fn serialize(data: &HashMap<String, Epoch>) -> Result<Vec<u8>> {
+        (|| -> bincode::Result<_> {
+            let buffer_size =
+                bincode::serialized_size(&Self::VERSION)? + bincode::serialized_size(&data)?;
+            let mut buffer = Vec::with_capacity(buffer_size as usize);
+
+            bincode::serialize_into(&mut buffer, &Self::VERSION)?;
+            bincode::serialize_into(&mut buffer, &data)?;
+
+            Ok(buffer)
+        })()
+        .context("could not serialize database")
+    }
+
+    fn deserialize(bytes: &[u8], now: Epoch) -> Result<HashMap<String, Epoch>> {
+        const MAX_SIZE: u64 = 32 << 10; // 32 MiB
+
+        let deserializer = &mut bincode::options()
+            .with_fixint_encoding()
+            .with_limit(MAX_SIZE);
+
+        let version_size = deserializer.serialized_size(&Self::VERSION).unwrap() as _;
+        if bytes.len() < version_size {
+            bail!("could not deserialize database: corrupted data");
+        }
+        let (bytes_version, bytes_data) = bytes.split_at(version_size);
+        let version = deserializer.deserialize(bytes_version)?;
+
+        let data: HashMap<String, Epoch> = match version {
+            Self::VERSION => deserializer
+                .deserialize(bytes_data)
+                .context("could not deserialize repo data")?,
+            version => bail!("unsupported version {version}, supports: {}", Self::VERSION),
+        };
+
+        let data: HashMap<String, Epoch> = data
+            .iter()
+            .filter(|(_, expire)| expire >= &&now)
+            .map(|(key, expire)| (key.to_string(), *expire))
+            .collect();
+        Ok(data)
     }
 }
