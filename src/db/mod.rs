@@ -122,12 +122,21 @@ impl Database {
         Ok(paths)
     }
 
-    pub fn match_keyword<R, K>(&self, remote: R, keyword: K) -> Result<usize>
+    pub fn match_keyword<R, K>(
+        &self,
+        remote: R,
+        keyword: K,
+        km: &HashMap<String, String>,
+    ) -> Result<usize>
     where
         R: AsRef<str>,
         K: AsRef<str>,
     {
-        let (group, base) = util::split_name(keyword.as_ref());
+        let keyword = match km.get(keyword.as_ref()) {
+            Some(kw) => kw,
+            None => keyword.as_ref(),
+        };
+        let (group, base) = util::split_name(keyword);
         let opt = self.repos.iter().position(|repo| {
             if remote.as_ref() != "" && repo.remote != remote.as_ref() {
                 return false;
@@ -143,7 +152,7 @@ impl Database {
             Some(idx) => Ok(idx),
             None => bail!(
                 "could not find repository matches {}",
-                style(keyword.as_ref()).yellow()
+                style(keyword).yellow()
             ),
         }
     }

@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use console::style;
 use serde::Deserialize;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::io;
@@ -15,6 +15,9 @@ pub struct Config {
 
     #[serde(default = "empty_vec")]
     pub remotes: Vec<Remote>,
+
+    #[serde(default = "empty_map")]
+    pub keyword_map: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -70,6 +73,10 @@ fn empty_vec<T>() -> Vec<T> {
     vec![]
 }
 
+fn empty_map<K, V>() -> HashMap<K, V> {
+    HashMap::new()
+}
+
 fn default_bool() -> bool {
     false
 }
@@ -77,6 +84,7 @@ fn default_bool() -> bool {
 fn default_config() -> Config {
     Config {
         workspace: String::from("${HOME}/dev"),
+        keyword_map: empty_map(),
         remotes: vec![],
     }
 }
