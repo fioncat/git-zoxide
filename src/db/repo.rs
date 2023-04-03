@@ -109,20 +109,13 @@ impl Repo {
         })?;
         let path_str = util::path_to_str(path)?;
         Shell::git().with_git_path(path_str).arg("init").exec()?;
-        if let Some(script) = &remote.on_create {
-            let lines: Vec<&str> = script.split("\n").collect();
-            for line in lines {
-                if line.is_empty() {
-                    continue;
-                }
-                let mut bash = Shell::bash(line);
-
-                bash.env("REPO_NAME", &self.name);
-                bash.env("REMOTE", &remote.name);
-
-                bash.with_path(path);
-
-                bash.exec()?;
+        if !remote.on_create.is_empty() {
+            let env = vec![
+                ("REPO_NAME", self.name.as_str()),
+                ("REMOTE", remote.name.as_str()),
+            ];
+            for step in &remote.on_create {
+                step.exec(path, &env)?;
             }
         }
         Ok(())
