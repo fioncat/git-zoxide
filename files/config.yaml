@@ -12,10 +12,20 @@ remotes:
       token: ${GITHUB_TOKEN}
 
   - name: rust-play
-    on_create: |
-      cargo init
+    on_create:
+      - name: Init cargo
+        run: cargo init
 
   - name: go-play
-    on_create: |
-      go mod init ${REPO_NAME}
-      echo "package main" > main.go
+    on_create:
+      - name: Init gomod
+        run: go mod init ${REPO_NAME}
+      - name: main.go
+        file: |
+          package main
+
+          import "fmt"
+
+          func main() {
+          \tfmt.Println("hello world!")
+          }

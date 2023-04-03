@@ -145,6 +145,14 @@ pub fn current_time() -> Result<Epoch> {
     Ok(current_time)
 }
 
+pub fn expand_env(s: impl AsRef<str>) -> Result<String> {
+    match shellexpand::full(s.as_ref()) {
+        Ok(s) => Ok(s.to_string()),
+        Err(err) => Err(err)
+            .with_context(|| format!("could not expand env for {}", style(s.as_ref()).yellow())),
+    }
+}
+
 pub fn confirm(msg: impl AsRef<str> + Into<String>) -> Result<()> {
     let result = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt(msg)
@@ -309,10 +317,17 @@ impl Shell {
         Self::new("git")
     }
 
-    pub fn bash(script: impl AsRef<OsStr>) -> Shell {
+    pub fn bash(script: impl AsRef<str>) -> Shell {
         let mut shell = Self::new("bash");
         shell.arg("-c");
-        shell.arg(script.as_ref());
+        // FIXME: We add `> /dev/stderr` at the end of the script to ensure that
+        // the script does not output any content to stdout. This method is not
+        // applicable to Windows and a more universal method is needed.
+        let script = format!("{} > /dev/stderr", script.as_ref());
+        shell.arg(script.as_str());
+        // The raw command was changed, donot print anything, let caller
+        // to print msg.
+        shell.mute = true;
         shell
     }
 

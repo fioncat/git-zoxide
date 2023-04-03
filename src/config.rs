@@ -8,6 +8,9 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::str::FromStr;
+
+use crate::util::{self, Shell};
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -26,7 +29,17 @@ pub struct Remote {
     pub user: Option<User>,
     pub clone: Option<Clone>,
     pub api: Option<API>,
-    pub on_create: Option<String>,
+
+    #[serde(default = "empty_vec")]
+    pub on_create: Vec<Step>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Step {
+    pub name: String,
+    pub run: Option<String>,
+    pub file: Option<String>,
+    pub copy: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -116,27 +129,24 @@ impl Config {
         let file = match fs::File::open(&path) {
             Ok(file) => file,
             Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(default_config()),
-            Err(err) => bail!("failed to read config file: {err}"),
+            Err(err) => return Err(err).context("could not read config file"),
         };
         match serde_yaml::from_reader(file) {
             Ok(config) => Ok(config),
-            Err(err) => bail!("failed to parse config yaml: {err}"),
+            Err(err) => return Err(err).context("could not parse config yaml"),
         }
     }
 
     pub fn parse() -> Result<Config> {
         let mut config = Self::read_config()?;
         if let Err(err) = config.normalize() {
-            bail!("failed to validate config: {err}")
+            return Err(err).context("unable to validate config");
         };
         Ok(config)
     }
 
     fn normalize(&mut self) -> Result<()> {
-        self.workspace = match shellexpand::full(&self.workspace) {
-            Ok(path) => path.to_string(),
-            Err(err) => bail!("failed to expand workspace env: {err}"),
-        };
+        self.workspace = util::expand_env(&self.workspace)?;
         let mut remote_set: HashSet<&String> = HashSet::with_capacity(self.remotes.len());
         for remote in &mut self.remotes {
             if let Some(_) = remote_set.get(&remote.name) {
@@ -145,13 +155,7 @@ impl Config {
             remote_set.insert(&remote.name);
 
             if let Some(api) = &mut remote.api {
-                api.token = match shellexpand::env(&api.token) {
-                    Ok(token) => token.to_string(),
-                    Err(err) => bail!(
-                        "failed to expand api token to remote {}: {err}",
-                        remote.name
-                    ),
-                };
+                api.token = util::expand_env(&api.token)?;
             };
         }
         Ok(())
@@ -166,5 +170,63 @@ impl Config {
             Some(remote) => Ok(remote),
             None => bail!("could not find remote {}", style(name).yellow()),
         }
+    }
+}
+
+impl Step {
+    pub fn exec(&self, path: &PathBuf, env: &Vec<(&str, &str)>) -> Result<()> {
+        if let Some(run) = self.run.as_ref() {
+            let script = run.replace("\n", ";");
+
+            util::print_operation(format!("exec {} ...", style(&self.name).yellow()));
+            let mut cmd = Shell::bash(&script);
+            for (key, val) in env {
+                cmd.env(key, val);
+            }
+            cmd.with_path(path);
+            cmd.exec()?;
+            return Ok(());
+        }
+
+        util::print_operation(format!("create {} ...", style(&self.name).yellow()));
+
+        let dst_name = PathBuf::from_str(&self.name)?;
+        let dst_path = path.join(dst_name);
+        let dst_dir = dst_path.parent().unwrap();
+
+        match fs::read_dir(&dst_dir) {
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                fs::create_dir_all(&dst_dir)
+                    .with_context(|| format!("could not create dir {}", dst_dir.display()))?;
+            }
+            Err(err) => {
+                return Err(err)
+                    .with_context(|| format!("could not read dir {}", dst_dir.display()));
+            }
+            _ => {}
+        }
+
+        if let Some(copy) = self.copy.as_ref() {
+            let src_path = util::expand_env(copy)?;
+            let src_path = PathBuf::from_str(&src_path)?;
+            fs::copy(&src_path, &dst_path).with_context(|| {
+                format!(
+                    "could not copy from {} to {}",
+                    src_path.display(),
+                    dst_path.display()
+                )
+            })?;
+            return Ok(());
+        }
+
+        let content = match self.file.as_ref() {
+            Some(s) => s,
+            None => "",
+        };
+        let content = content.replace("\\t", "\t");
+
+        fs::write(&dst_path, content)
+            .with_context(|| format!("could not write {}", dst_path.display()))?;
+        Ok(())
     }
 }
