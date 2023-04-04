@@ -23,8 +23,10 @@ impl Run for Jump {
 
         let (_, name) = util::split_name(&repo.name);
         if !name.eq(&self.keyword) {
-            keywords.add(&self.keyword, now);
-            keywords.save()?;
+            if let None = config.keyword_map.get(&self.keyword) {
+                keywords.add(&self.keyword, now);
+                keywords.save()?;
+            }
         }
 
         db.sort(now);
