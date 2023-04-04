@@ -38,6 +38,9 @@ impl MergeOption {
     }
 
     pub fn body_display(&self) -> String {
+        if self.body.is_empty() {
+            return String::from("<empty>");
+        }
         let lines = self.body.split("\n").count();
         let word = if lines <= 1 { "line" } else { "lines" };
         format!("{} {}", lines, word)
@@ -45,14 +48,23 @@ impl MergeOption {
 }
 
 pub trait Provider {
+    // list all repos for a group, the group can be owner or org in Github.
     fn list(&self, group: &str) -> Result<Vec<String>>;
 
+    // Get default branch name.
     fn get_default_branch(&self, repo: &str) -> Result<String>;
 
+    // Get upstream repo name. Only work for forked repo. This will return
+    // `errors.REPO_NO_UPSTREAM` for no forked repo.
     fn get_upstream(&self, repo: &str) -> Result<String>;
+
+    // Try to get URL for merge request (or PR for Github). If merge request
+    // not exists, return Ok(None).
     fn get_merge(&self, opts: &MergeOption) -> Result<Option<String>>;
+    // Create merge request (or PR for Github), and return its URL.
     fn create_merge(&self, opts: &MergeOption) -> Result<String>;
 
+    // Get web url for repo.
     fn get_repo_url(&self, name: &str, branch: Option<String>, remote: &Remote) -> Result<String>;
 }
 

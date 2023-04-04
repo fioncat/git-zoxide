@@ -1,6 +1,13 @@
 use anyhow::{bail, Context, Result};
+
+// Gitlab api
+use gitlab::api;
+use gitlab::api::groups::projects::GroupProjects;
 use gitlab::api::projects::merge_requests::{CreateMergeRequest, MergeRequestState, MergeRequests};
-use gitlab::api::{self, groups, projects, Query};
+use gitlab::api::projects::Project;
+use gitlab::api::{Pagination, Query};
+
+// Gitlab models
 use gitlab::types;
 
 use crate::api::Provider;
@@ -12,11 +19,11 @@ pub struct Gitlab {
 
 impl Provider for Gitlab {
     fn list(&self, group: &str) -> Result<Vec<String>> {
-        let endpoint = groups::projects::GroupProjects::builder()
+        let endpoint = GroupProjects::builder()
             .group(group)
             .build()
             .context("unable to build gitlab group endpoint")?;
-        let projects: Vec<types::Project> = api::paged(endpoint, api::Pagination::All)
+        let projects: Vec<types::Project> = api::paged(endpoint, Pagination::All)
             .query(&self.client)
             .context("unable to query gitlab projects")?;
 
@@ -110,7 +117,7 @@ impl Gitlab {
     }
 
     fn get_project(&self, name: impl AsRef<str>) -> Result<types::Project> {
-        let endpoint = projects::Project::builder()
+        let endpoint = Project::builder()
             .project(name.as_ref())
             .build()
             .context("unable to build gitlab project endpoint")?;

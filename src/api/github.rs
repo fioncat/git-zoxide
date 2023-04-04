@@ -40,6 +40,7 @@ impl Github {
             builder = builder.personal_token(token.as_ref().to_string());
         }
         let instance = builder.build()?;
+        // The octocrab can only run in tokio. Create a runtime for it.
         let runtime = Runtime::new().context("unable to create tokio runtime")?;
         let query_opt = GithubQueryOption {
             per_page: Self::QUERY_PER_PAGE,
@@ -160,6 +161,13 @@ impl Github {
 
         match &opts.upstream {
             Some(upstream) => {
+                // Create PR to upstream, the operation object is upstream itself.
+                // The base is upstream targetBranch, The head is "user:sourceBranch".
+                // For example, merge "fioncat:kubernetes" to "kubernetes:kubernetes"
+                // Branch is "master", the params are:
+                //   repo: kubernetes/kubernetes
+                //   base: master
+                //   head: fioncat:master
                 head_owner = owner;
                 head = format!("{}:{}", head_owner, opts.source);
                 (owner, name) = Self::parse_repo_name(upstream)?;
