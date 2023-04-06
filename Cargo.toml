@@ -1,6 +1,6 @@
 [package]
 name = "git-zoxide"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["fioncat <lazycat7706@gmail.com>"]
 categories = ["command-line-utilities", "filesystem"]
