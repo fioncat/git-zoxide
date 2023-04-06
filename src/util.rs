@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::env;
 use std::ffi::{OsStr, OsString};
+use std::fmt::Display;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::mem;
@@ -10,6 +11,7 @@ use std::str::FromStr;
 use std::time::SystemTime;
 
 use anyhow::{bail, Context, Result};
+use chrono::offset::Local;
 
 use crate::api;
 use crate::config::Config;
@@ -18,7 +20,7 @@ use crate::errors::SilentExit;
 
 use console::{style, StyledObject, Term};
 use dialoguer::{theme::ColorfulTheme, Confirm};
-use regex::Regex;
+use regex::{Captures, Regex};
 
 pub const SECOND: Epoch = 1;
 pub const MINUTE: Epoch = 60 * SECOND;
@@ -732,6 +734,95 @@ impl GitRemote {
             .args(["fetch", self.0.as_str(), branch.as_str()])
             .exec()?;
         Ok(target)
+    }
+}
+
+pub struct GitTag(String);
+
+impl Display for GitTag {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl GitTag {
+    const NUM_REGEX: &str = r"\d+";
+    const PLACEHOLDER_REGEX: &str = r"\{(\d+|%[yYmMdD])(\+)*}";
+
+    pub fn from_str(s: impl AsRef<str>) -> GitTag {
+        GitTag(s.as_ref().to_string())
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    pub fn list() -> Result<Vec<GitTag>> {
+        let tags: Vec<_> = Shell::git()
+            .arg("tag")
+            .exec()?
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| GitTag(line.trim().to_string()))
+            .collect();
+        Ok(tags)
+    }
+
+    pub fn latest() -> Result<GitTag> {
+        Shell::git()
+            .args(["fetch", "origin", "--prune-tags"])
+            .exec()?;
+        let output = Shell::git()
+            .args(["describe", "--tags", "--abbrev=0"])
+            .exec()?;
+        let tag = output.trim().to_string();
+        if tag.is_empty() {
+            bail!("no latest tag")
+        }
+        Ok(GitTag(tag))
+    }
+
+    pub fn apply_rule(&self, rule: impl AsRef<str>) -> Result<GitTag> {
+        let num_re = Regex::new(Self::NUM_REGEX).context("unable to parse num regex")?;
+        let ph_re = Regex::new(Self::PLACEHOLDER_REGEX)
+            .context("unable to parse rule placeholder regex")?;
+
+        let nums: Vec<i32> = num_re
+            .captures_iter(self.0.as_str())
+            .map(|caps| {
+                caps.get(0)
+                    .unwrap()
+                    .as_str()
+                    .parse()
+                    // The caps here MUST be number, so it is safe to use expect here
+                    .expect("unable to parse num caps")
+            })
+            .collect();
+
+        let mut with_date = false;
+        let result = ph_re.replace_all(rule.as_ref(), |caps: &Captures| {
+            let rep = caps.get(1).unwrap().as_str();
+            let idx: usize = match rep.parse() {
+                Ok(idx) => idx,
+                Err(_) => {
+                    with_date = true;
+                    return rep.to_string();
+                }
+            };
+            let num = if idx >= nums.len() { 0 } else { nums[idx] };
+            let plus = caps.get(2);
+            match plus {
+                Some(_) => format!("{}", num + 1),
+                None => format!("{}", num),
+            }
+        });
+        let mut result = result.to_string();
+        if with_date {
+            let date = Local::now();
+            result = date.format(&result).to_string();
+        }
+
+        Ok(GitTag(result))
     }
 }
 

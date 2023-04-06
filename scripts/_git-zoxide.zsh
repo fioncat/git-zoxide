@@ -13,6 +13,7 @@ _GIT_ZOXIDE_CMDS=( \
 	"reset" \
 	"squash" \
 	"jump" \
+	"tag" \
 )
 
 _git-zoxide() {
@@ -58,6 +59,9 @@ _git-zoxide() {
 		squash)
 			_git-zoxide_cmp_branch
 			;;
+		tag)
+			_git-zoxide_cmp_tag
+			;;
 	esac
 	if (( ${#words[@]} > 4 )); then
 		_arguments '*:dir:_dirs'
@@ -88,6 +92,16 @@ _git-zoxide_cmp_branch() {
 	fi
 }
 
+_git-zoxide_cmp_tag() {
+	if [ "${#words[@]}" -eq "3" ]; then
+		local tags=($($cmd tag 2>/dev/null))
+		_describe 'command' tags
+		return
+	fi
+	local rules=($($cmd tag --show-rules 2>/dev/null))
+	_describe 'command' rules
+}
+
 _git-zoxide_cmp_repo() {
 	if [ "${#words[@]}" -eq "4" ]; then
 		local remote=${words[3]}
@@ -95,7 +109,6 @@ _git-zoxide_cmp_repo() {
 		_describe 'command' repos
 		return
 	fi
-
 }
 
 _git-zoxide_cmp_group() {

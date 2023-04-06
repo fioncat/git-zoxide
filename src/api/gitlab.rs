@@ -57,6 +57,7 @@ impl Provider for Gitlab {
         }
         let endpoint = MergeRequests::builder()
             .state(MergeRequestState::Opened)
+            .project(opts.repo.as_str())
             .target_branch(&opts.target)
             .source_branch(&opts.source)
             .build()
@@ -75,7 +76,7 @@ impl Provider for Gitlab {
             bail!("sorry, gitlab now does not support upstream features")
         }
         let endpoint = CreateMergeRequest::builder()
-            .project(opts.repo.clone())
+            .project(opts.repo.as_str())
             .title(&opts.title)
             .source_branch(&opts.source)
             .target_branch(&opts.target)
