@@ -28,6 +28,9 @@ impl Run for Tag {
         if self.create {
             return self.create(tags);
         }
+        if self.push {
+            return self.push(tags);
+        }
         if self.args.is_empty() {
             for tag in &tags {
                 println!("{}", tag);
@@ -79,6 +82,8 @@ impl Tag {
                 "Do you want to create tag {}",
                 style(new_tag.as_str()).yellow()
             ))?;
+            println!();
+
             new_tag
         } else {
             if self.args.is_empty() {
@@ -95,9 +100,19 @@ impl Tag {
 
         Shell::git().args(["tag", tag.as_str()]).exec()?;
         if self.push {
-            Shell::git().args(["push", "tag", tag.as_str()]).exec()?;
+            Shell::git()
+                .args(["push", "origin", "tag", tag.as_str()])
+                .exec()?;
         }
 
+        Ok(())
+    }
+
+    fn push(&self, tags: Vec<GitTag>) -> Result<()> {
+        let tag = self.get_tag_or_latest(tags)?;
+        Shell::git()
+            .args(["push", "origin", "tag", tag.as_str()])
+            .exec()?;
         Ok(())
     }
 

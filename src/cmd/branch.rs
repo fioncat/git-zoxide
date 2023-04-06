@@ -24,6 +24,9 @@ impl Run for Branch {
         if self.delete {
             return self.delete(&branches);
         }
+        if !self.create && self.push {
+            return self.push(&branches);
+        }
         if self.args.is_empty() {
             self.show(&branches);
             return Ok(());
@@ -169,13 +172,7 @@ impl Branch {
     }
 
     fn delete(&self, branches: &Vec<GitBranch>) -> Result<()> {
-        let branch = match self.args.len() {
-            0 => Self::must_get_current_branch(branches)?,
-            _ => match branches.iter().find(|b| b.name.eq(&self.args[0])) {
-                Some(b) => b,
-                None => bail!("could not find branch {}", style(&self.args[0]).yellow()),
-            },
-        };
+        let branch = self.get_branch_or_current(branches)?;
 
         if branch.current {
             GitBranch::ensure_no_uncommitted()?;
@@ -193,6 +190,24 @@ impl Branch {
                 .exec()?;
         }
         Ok(())
+    }
+
+    fn push(&self, branches: &Vec<GitBranch>) -> Result<()> {
+        let branch = self.get_branch_or_current(branches)?;
+        Shell::git()
+            .args(["push", "--set-upstream", "origin", branch.name.as_ref()])
+            .exec()?;
+        Ok(())
+    }
+
+    fn get_branch_or_current<'a>(&self, branches: &'a Vec<GitBranch>) -> Result<&'a GitBranch> {
+        match self.args.len() {
+            0 => Self::must_get_current_branch(branches),
+            _ => match branches.iter().find(|b| b.name.eq(&self.args[0])) {
+                Some(b) => Ok(b),
+                None => bail!("could not find branch {}", style(&self.args[0]).yellow()),
+            },
+        }
     }
 
     fn must_get_current_branch(branches: &Vec<GitBranch>) -> Result<&GitBranch> {
