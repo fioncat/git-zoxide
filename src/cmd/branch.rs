@@ -21,15 +21,12 @@ impl Run for Branch {
         if self.sync {
             return self.sync(&branches);
         }
-        if self.args.is_empty() {
-            self.show(&branches);
-            return Ok(());
-        }
         if self.delete {
             return self.delete(&branches);
         }
         if self.args.is_empty() {
-            bail!("require branch name")
+            self.show(&branches);
+            return Ok(());
         }
         let name = &self.args[0];
         if self.create {
@@ -166,7 +163,7 @@ impl Branch {
 
     fn fetch(&self) -> Result<()> {
         let mut git = Shell::git();
-        git.args(["fetch", "--prune"]);
+        git.args(["fetch", "origin", "--prune"]);
         git.exec()?;
         Ok(())
     }

@@ -21,6 +21,9 @@ pub struct Config {
 
     #[serde(default = "empty_map")]
     pub keyword_map: HashMap<String, String>,
+
+    #[serde(default = "empty_map")]
+    pub tag_rule: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -98,6 +101,7 @@ fn default_config() -> Config {
     Config {
         workspace: String::from("${HOME}/dev"),
         keyword_map: empty_map(),
+        tag_rule: empty_map(),
         remotes: vec![],
     }
 }

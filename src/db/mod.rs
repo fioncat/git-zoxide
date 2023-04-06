@@ -53,7 +53,7 @@ impl Database {
 
         for repo in &self.repos {
             let path = repo.path(workspace.as_ref())?;
-            if current_dir.eq(&path) {
+            if current_dir.starts_with(&path) {
                 return Ok(repo);
             }
         }

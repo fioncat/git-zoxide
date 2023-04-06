@@ -13,6 +13,7 @@ mod rebase;
 mod remove;
 mod reset;
 mod squash;
+mod tag;
 
 use anyhow::Result;
 use clap::Parser;
@@ -35,6 +36,7 @@ pub enum Cmd {
     Squash(Squash),
     Reset(Reset),
     Jump(Jump),
+    Tag(Tag),
 }
 
 // Home print the path for a repository
@@ -216,6 +218,28 @@ pub struct Jump {
     pub keyword: String,
 }
 
+#[derive(Debug, Parser)]
+#[command(about = "Git tag operations")]
+pub struct Tag {
+    #[clap(num_args = 0..=1)]
+    pub args: Vec<String>,
+
+    #[clap(long, short)]
+    pub rule: Option<String>,
+
+    #[clap(long, short)]
+    pub create: bool,
+
+    #[clap(long, short)]
+    pub delete: bool,
+
+    #[clap(long, short)]
+    pub push: bool,
+
+    #[clap(long)]
+    pub show_rules: bool,
+}
+
 pub trait Run {
     fn run(&self) -> Result<()>;
 }
@@ -238,6 +262,7 @@ impl Run for Cmd {
             Cmd::Squash(squash) => squash.run(),
             Cmd::Reset(reset) => reset.run(),
             Cmd::Jump(jump) => jump.run(),
+            Cmd::Tag(tag) => tag.run(),
         }
     }
 }
