@@ -7,6 +7,8 @@ use crate::cmd::Home;
 use crate::cmd::Run;
 use crate::config::{Config, Remote};
 use crate::db::Database;
+use crate::db::Epoch;
+use crate::db::Keywords;
 use crate::util;
 
 impl Run for Home {
@@ -15,7 +17,7 @@ impl Run for Home {
         let cfg = Config::parse()?;
         let now = util::current_time()?;
 
-        let (remote, repo_idx) = self.query(&mut db, &cfg)?;
+        let (remote, repo_idx) = self.query(&mut db, &cfg, now)?;
         let repo = &db.repos[repo_idx];
 
         let path = repo.ensure_path(&cfg.workspace, remote)?;
@@ -31,7 +33,12 @@ impl Run for Home {
 }
 
 impl Home {
-    fn query<'a>(&self, db: &mut Database, cfg: &'a Config) -> Result<(&'a Remote, usize)> {
+    fn query<'a>(
+        &self,
+        db: &mut Database,
+        cfg: &'a Config,
+        now: Epoch,
+    ) -> Result<(&'a Remote, usize)> {
         if self.args.is_empty() {
             if db.repos.is_empty() {
                 bail!("there is no repo in the database, please consider creating one")
@@ -54,6 +61,12 @@ impl Home {
                 Some(remote) => return Ok((remote, self.search_repo(db, arg, "")?)),
                 None => {
                     let idx = db.match_keyword("", arg, &cfg.keyword_map)?;
+                    if let None = cfg.keyword_map.get(arg) {
+                        // Store keyword in database to make completion next time
+                        let mut keyword_db = Keywords::open(now)?;
+                        keyword_db.add(&arg, now);
+                        keyword_db.save()?;
+                    }
                     let remote = cfg.must_get_remote(&db.repos[idx].remote)?;
                     return Ok((remote, idx));
                 }

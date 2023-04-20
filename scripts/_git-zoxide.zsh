@@ -34,7 +34,7 @@ _git-zoxide() {
 		detach)
 			;;
 		home)
-			_git-zoxide_cmp_remote
+			_git-zoxide_cmp_remote_keyword
 			_git-zoxide_cmp_repo
 			;;
 		jump)
@@ -70,7 +70,7 @@ _git-zoxide() {
 
 _git-zoxide_cmp_remote() {
 	if [ "${#words[@]}" -eq "3" ]; then
-		local remotes=($($cmd list 2>/dev/null))
+		local remotes=($($cmd list --remote 2>/dev/null))
 		_describe 'command' remotes
 		return
 	fi
@@ -79,6 +79,14 @@ _git-zoxide_cmp_remote() {
 _git-zoxide_cmp_keyword() {
 	if [ "${#words[@]}" -eq "3" ]; then
 		local remotes=($($cmd list --keyword 2>/dev/null))
+		_describe 'command' remotes
+		return
+	fi
+}
+
+_git-zoxide_cmp_remote_keyword() {
+	if [ "${#words[@]}" -eq "3" ]; then
+		local remotes=($($cmd list --remote --keyword 2>/dev/null))
 		_describe 'command' remotes
 		return
 	fi

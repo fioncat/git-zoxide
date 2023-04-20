@@ -108,6 +108,9 @@ pub struct List {
 
     #[clap(long)]
     pub keyword: bool,
+
+    #[clap(long)]
+    pub remote: bool,
 }
 
 #[derive(Debug, Parser)]
