@@ -39,9 +39,9 @@ impl Github {
         if !token.as_ref().is_empty() {
             builder = builder.personal_token(token.as_ref().to_string());
         }
-        let instance = builder.build()?;
         // The octocrab can only run in tokio. Create a runtime for it.
         let runtime = Runtime::new().context("unable to create tokio runtime")?;
+        let instance = runtime.block_on(async { builder.build() })?;
         let query_opt = GithubQueryOption {
             per_page: Self::QUERY_PER_PAGE,
         };
@@ -88,43 +88,29 @@ impl Provider for Github {
 
     fn get_merge(&self, opts: &MergeOption) -> Result<Option<String>> {
         let pr = Self::pr_options(opts)?;
-        if let Some(upstream) = &opts.upstream {
-            let query = format!(
+
+        let query = match &opts.upstream {
+            Some(upstream) => format!(
                 "is:open is:pr author:{} head:{} base:{} repo:{}",
                 pr.head_owner, opts.source, opts.target, upstream
-            );
-            let mut issues = self.runtime.block_on(
-                self.instance
-                    .search()
-                    .issues_and_pull_requests(&query)
-                    .send(),
-            )?;
-            let issues = issues.take_items();
-            if issues.is_empty() {
-                return Ok(None);
-            }
-            let pr = &issues[0];
-            return Ok(Some(pr.html_url.to_string()));
-        }
-
-        let mut prs = self.runtime.block_on(
+            ),
+            None => format!(
+                "is:open is:pr head:{} base:{} repo:{}",
+                opts.source, opts.target, opts.repo
+            ),
+        };
+        let mut issues = self.runtime.block_on(
             self.instance
-                .pulls(&pr.owner, &pr.name)
-                .list()
-                .base(&opts.target)
-                .head(&pr.head)
+                .search()
+                .issues_and_pull_requests(&query)
                 .send(),
         )?;
-        let prs = prs.take_items();
-        if prs.is_empty() {
+        let issues = issues.take_items();
+        if issues.is_empty() {
             return Ok(None);
         }
-
-        let pr = &prs[0];
-        match &pr.html_url {
-            Some(url) => Ok(Some(url.to_string())),
-            None => bail!("github didnot return html_url for pr"),
-        }
+        let pr = &issues[0];
+        return Ok(Some(pr.html_url.to_string()));
     }
 
     fn create_merge(&self, opts: &MergeOption) -> Result<String> {
