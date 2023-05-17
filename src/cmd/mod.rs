@@ -39,206 +39,250 @@ pub enum Cmd {
     Tag(Tag),
 }
 
-// Home print the path for a repository
+/// Print the home path for a repository, recommanded to use `zz` instead
 #[derive(Debug, Parser)]
-#[command(about = "Print the home path for a repository, recommanded to use `zz` instead")]
 pub struct Home {
+    /// Remote and name of the repo, you can use keyword to match repo
     #[clap(num_args = 0..=2)]
     pub args: Vec<String>,
 
-    // Create the repo
+    /// Create the repo
     #[clap(long, short)]
     pub create: bool,
 
+    /// Use remote provider to search the repo
     #[clap(long, short)]
     pub search: bool,
 }
 
+/// Remove a repository
 #[derive(Debug, Parser)]
-#[command(about = "Remove a repository")]
 pub struct Remove {
+    /// The remote of the repo
     pub remote: String,
+    /// The name of the repo
     pub name: String,
 
+    /// Direct remove, skip confirm
     #[clap(long, short)]
     pub force: bool,
 }
 
+/// Clean unused directory in workspace
 #[derive(Debug, Parser)]
-#[command(about = "Clean unused directory in workspace")]
 pub struct Clean {
+    /// Show repo to clean, do not execute
     #[clap(long)]
     pub dry_run: bool,
 }
 
+/// Attach current path to a repository
 #[derive(Debug, Parser)]
-#[command(about = "Attach current path to a repository")]
 pub struct Attach {
+    /// The remote of the repo
     #[clap(required = true)]
     pub remote: String,
 
+    /// The name of the repo
     #[clap(required = true)]
     pub name: String,
 
+    /// The directory to attach, default is current path
     #[clap(long, short)]
     pub dir: Option<String>,
 
+    /// Overwrite the git remote config
     #[clap(long, short)]
     pub remote_config: bool,
 
+    /// Overwrite the git user config
     #[clap(long, short)]
     pub user_config: bool,
 }
 
+/// Detach current path from a repository
 #[derive(Debug, Parser)]
-#[command(about = "Detach current path from a repository")]
 pub struct Detach {
+    /// The directory to detach, default is current path
     #[clap(long, short)]
     pub dir: Option<String>,
 }
 
+/// List remotes or repositories
 #[derive(Debug, Parser)]
-#[command(about = "List remotes or repositories")]
 pub struct List {
+    /// With remote or not
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
 
+    /// Show only group (for completion)
     #[clap(long)]
     pub group: bool,
 
+    /// Show only keyword (for completion)
     #[clap(long)]
     pub keyword: bool,
 
+    /// Show only remote (for completion)
     #[clap(long)]
     pub remote: bool,
 }
 
+/// Print the init script, please add `source <(git-zoxide init)` to your profile
 #[derive(Debug, Parser)]
-#[command(about = "Print the init script, please add `source <(git-zoxide init)` to your profile")]
 pub struct Init {
-    // cmd name, default is `gz`
+    /// The command name, default is `gz`
     #[clap(long)]
     pub cmd: Option<String>,
 
+    /// The home command name, default is `zz`
     #[clap(long)]
     pub home_cmd: Option<String>,
 
+    /// The jump command name, default is `zj`
     #[clap(long)]
     pub jump_cmd: Option<String>,
 }
 
+/// Edit config file
 #[derive(Debug, Parser)]
-#[command(about = "Edit config file")]
 pub struct Config {
+    /// The editor to use, default will auto choose one from your machine
     #[clap(long, short)]
     pub editor: Option<String>,
 }
 
+/// Git branch operations
 #[derive(Debug, Parser)]
-#[command(about = "Git branch operations")]
 pub struct Branch {
+    /// Branch name, optional
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
 
+    /// Show all info, include branch status
     #[clap(long, short)]
     pub all: bool,
 
+    /// Sync branch with remote
     #[clap(long, short)]
     pub sync: bool,
 
+    /// Create a new branch
     #[clap(long, short)]
     pub create: bool,
 
+    /// Delete branch
     #[clap(long, short)]
     pub delete: bool,
 
+    /// Push change (create or delete) to remote
     #[clap(long, short)]
     pub push: bool,
 
+    /// Show branch (for completion)
     #[clap(long)]
     pub cmp: bool,
 }
 
+/// Create or open MergeRequest or PullRequest
 #[derive(Debug, Parser)]
-#[command(about = "Merge request operations")]
 pub struct Merge {
+    /// Upstream mode, only used for forked repo
     #[clap(long, short)]
     pub upstream: bool,
 
+    /// Source branch, default will use current branch
     #[clap(long, short)]
     pub source: Option<String>,
 
+    /// Target branch, default will use HEAD branch
     #[clap(long, short)]
     pub target: Option<String>,
 }
 
+/// Open current repository in default browser
 #[derive(Debug, Parser)]
-#[command(about = "Open current repository in default browser")]
 pub struct Open {
+    /// Open current branch
     #[clap(long, short)]
     pub branch: bool,
 }
 
+/// Rebase current branch
 #[derive(Debug, Parser)]
-#[command(about = "Rebase default branch")]
 pub struct Rebase {
+    /// Rebase source (optional), default will use HEAD branch
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
 
+    /// Upstream mode, only used for forked repo
     #[clap(long, short)]
     pub upstream: bool,
 }
 
+/// Squash multiple commits into one
 #[derive(Debug, Parser)]
-#[command(about = "Squash multiple commits into one")]
 pub struct Squash {
+    /// Squash source (optional), default will use HEAD branch
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
 
+    /// Upstream mode, only used for forked repo
     #[clap(long, short)]
     pub upstream: bool,
 
+    /// Commit message
     #[clap(long, short)]
     pub message: Option<String>,
 }
 
+/// Reset git to remote
 #[derive(Debug, Parser)]
-#[command(about = "Reset git to remote")]
 pub struct Reset {
+    /// Reset source (optional), default will use current branch
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
 
+    /// Reset to HEAD branch
     #[clap(long, short)]
     pub default: bool,
 
+    /// Upstream mode, only used for forked repo
     #[clap(long, short)]
     pub upstream: bool,
 }
 
+/// Quick jump to a repository (please use `gz` instead)
 #[derive(Debug, Parser)]
-#[command(about = "Quick jump to a repository (please use `gz` instead)")]
 pub struct Jump {
+    /// Jump keyword
     pub keyword: String,
 }
 
+/// Git tag operations
 #[derive(Debug, Parser)]
-#[command(about = "Git tag operations")]
 pub struct Tag {
+    /// Tag name, optional
     #[clap(num_args = 0..=1)]
     pub args: Vec<String>,
 
+    /// The rule name used to create tag
     #[clap(long, short)]
     pub rule: Option<String>,
 
+    /// Create a new tag
     #[clap(long, short)]
     pub create: bool,
 
+    /// Delete tag
     #[clap(long, short)]
     pub delete: bool,
 
+    /// Push change (create or delete) to the remote
     #[clap(long, short)]
     pub push: bool,
 
+    /// Show rules (for completion)
     #[clap(long)]
     pub show_rules: bool,
 }
