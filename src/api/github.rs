@@ -55,7 +55,7 @@ impl Github {
 
 impl Provider for Github {
     fn list(&self, group: &str) -> Result<Vec<String>> {
-        let url = format!("users/{}/repos", group);
+        let url = format!("/users/{}/repos", group);
 
         let repos: Vec<models::Repository> = self
             .runtime
